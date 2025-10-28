@@ -5,7 +5,7 @@
 	const openSettingsDialogAction = () => dialogStore.open(SettingsLazyDialog);
 </script>
 
-<div class="bar">
+<div class="bar floating">
 	<div class="logo">
 		<svg
 			width="32"
@@ -107,12 +107,6 @@
 		padding: 10px 16px;
 		max-width: 420px;
 		width: calc(100% - 32px);
-
-		background: rgba(255, 255, 255, 0.85);
-		backdrop-filter: blur(8px);
-		border: 1px solid rgba(220, 220, 220, 0.7);
-		border-radius: 24px;
-		box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
 		transition: all 0.2s ease;
 		z-index: 10;
 	}
@@ -152,9 +146,9 @@
 
 	.form-control {
 		display: flex;
+		flex: 1;
 
 		&__input {
-			flex: 1;
 			font-size: 1rem;
 			height: 36px;
 			width: 100%;

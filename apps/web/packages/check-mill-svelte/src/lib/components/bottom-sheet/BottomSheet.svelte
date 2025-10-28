@@ -73,7 +73,6 @@
 		display: block;
 		inline-size: 100%;
 		block-size: calc(100% - env(safe-area-inset-top));
-		flex-direction: column;
 		overflow-y: scroll;
 		scroll-snap-type: y mandatory;
 		margin: env(safe-area-inset-top) auto 0;
@@ -102,22 +101,12 @@
 			scrollbar-width: none;
 			inline-size: 100%;
 			height: 100%;
-			border-radius: 16px 16px 0 0;
+			border-radius: 24px 24px 0 0;
 			margin: auto auto 0;
 			margin-block-start: auto;
 			background-color: #fff;
-			box-shadow:
-				0 0 2px 0 rgba(26, 27, 30, 0.08),
-				0 2px 4px 0 rgba(34, 36, 40, 0.06),
-				0 4px 6px 0 rgba(60, 63, 73, 0.04);
 			scroll-snap-stop: always;
 			scroll-snap-align: start;
-			transition: border-radius 0.3s ease;
-			will-change: border-radius;
-
-			&._stuck {
-				border-radius: 0;
-			}
 		}
 
 		&__scrollable-content {

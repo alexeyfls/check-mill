@@ -1,0 +1,16 @@
+
+.scroller {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: var(--scroller-gap, 8px);
+    position: relative;
+    width: calc(100% + 2 * var(--scroller-mx, 0px));
+    padding: var(--scroller-my, 0px) var(--scroller-mx, 0px);
+    margin: calc(-1 * var(--scroller-my, 0px)) calc(-1 * var(--scroller-mx, 0px));
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-behavior: smooth;
+    touch-action: pan-y pinch-zoom;
+    transition: transform 0.25s ease;
+}

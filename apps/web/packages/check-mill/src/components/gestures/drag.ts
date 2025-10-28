@@ -145,7 +145,7 @@ export function Drag(root: HTMLElement, axis: AxisType): DragType {
   function addDragEvents(): void {
     disposables.push(
       DisposableStoreId.Temporal,
-      event(root, "pointermove", onPointerMove, { passive: false }),
+      event(root, "pointermove", onPointerMove),
       event(root, "pointerup", onPointerUp),
       event(root, "pointerout", onPointerUp),
       event(root, "pointerleave", onPointerUp),
