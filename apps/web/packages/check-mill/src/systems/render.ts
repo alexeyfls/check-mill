@@ -9,21 +9,21 @@ import {
   SlidesRenderer,
   Translate,
   appProcessorThrottled,
-  createVisibilityTracker,
+  VisibilityTracker,
   writeVariables,
 } from "../components";
 import { type Disposable, DisposableStoreId, createDisposableStore } from "../core";
-import { type AppSystem } from "./system";
+import { type AppSystemInitializer } from "./system";
 
-export const RenderSystem: AppSystem = (appRef: AppRef) => {
+export const RenderSystem: AppSystemInitializer = (appRef: AppRef) => {
   let renderer: SlidesRendererType;
   let translate: TranslateType;
-  let slidesVisibilityTracker: VisibilityTrackerType;
+  let visibilityTracker: VisibilityTrackerType;
 
   const init = (): Disposable => {
     translate = Translate(appRef.axis);
 
-    slidesVisibilityTracker = createVisibilityTracker(
+    visibilityTracker = createVisibilityTracker(
       appRef.owner.root,
       appRef.slides.map((s) => s.nativeElement)
     );
@@ -39,28 +39,20 @@ export const RenderSystem: AppSystem = (appRef: AppRef) => {
     writeVariables(appRef.owner.root, appRef.layout);
 
     const disposables = createDisposableStore();
-    disposables.push(DisposableStoreId.Static, slidesVisibilityTracker.init());
+    disposables.push(DisposableStoreId.Static, visibilityTracker.init());
 
     return () => disposables.flushAll();
   };
 
-  const lerp: AppProcessorFunction = (app, timeParams) => {
-    const motion = app.motion;
-    const interpolated =
-      motion.current * timeParams.alpha + motion.previous * (1.0 - timeParams.alpha);
-    motion.offset = interpolated;
-
-    return app;
-  };
-
   const syncVisibility: AppProcessorFunction = (app: AppRef, _timeParams) => {
-    const records = slidesVisibilityTracker.takeRecords();
+    const records = visibilityTracker.takeRecords();
 
     for (const record of records) {
       switch (record.change) {
         case VisibilityChange.Exited:
           renderer.fadeOut(app.slides[record.index], app.motion);
           break;
+
         case VisibilityChange.Entered:
           renderer.fadeIn(app.slides[record.index], app.motion);
           break;
@@ -84,7 +76,6 @@ export const RenderSystem: AppSystem = (appRef: AppRef) => {
     init,
     logic: {
       [Phases.Render]: [
-        lerp,
         syncOffset,
         applyTranslation,
         appProcessorThrottled(syncVisibility, 160),

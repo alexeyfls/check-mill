@@ -82,13 +82,14 @@ export function createVisibilityTracker(
 
     for (let i = 0; i < elementCount; i++) {
       const diff = currentRecords[i] - lastRecords[i];
+      const changed = diff === VisibilityChange.Entered || diff === VisibilityChange.Exited;
 
-      if (diff === VisibilityChange.Entered || diff === VisibilityChange.Exited) {
-        changedRecords.push({
-          index: i,
-          change: diff,
-        });
-      }
+      if (!changed) continue;
+
+      changedRecords.push({
+        index: i,
+        change: diff,
+      });
     }
 
     lastRecords.set(currentRecords);
@@ -100,7 +101,9 @@ export function createVisibilityTracker(
       const index = parseInt(target.getAttribute("data-visibility-index")!, 10);
 
       if (!isNaN(index)) {
-        currentRecords[index] = isIntersecting ? VisibilityState.Visible : VisibilityState.Hidden;
+        currentRecords[index] = isIntersecting
+          ? VisibilityState.Visible
+          : VisibilityState.Hidden;
       }
     }
   }

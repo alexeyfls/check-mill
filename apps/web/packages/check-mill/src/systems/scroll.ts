@@ -9,9 +9,9 @@ import {
   Wheel,
 } from "../components";
 import { type Disposable, DisposableStoreId, createDisposableStore } from "../core";
-import { type AppSystem } from "./system";
+import { type AppSystemInitializer } from "./system";
 
-export const ScrollSystem: AppSystem = (appRef: AppRef) => {
+export const ScrollSystem: AppSystemInitializer = (appRef: AppRef) => {
   const init = (): Disposable => {
     const drag = Drag(appRef.owner.root, appRef.axis);
     const wheel = Wheel(appRef.owner.root, appRef.axis);

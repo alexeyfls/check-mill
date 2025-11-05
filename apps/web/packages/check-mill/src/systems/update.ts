@@ -1,15 +1,13 @@
 import { type AppProcessorFunction, Phases, loop } from "../components";
 import { noop } from "../core";
-import { type AppSystem } from "./system";
+import { type AppSystemInitializer } from "./system";
 
-export const UpdateSystem: AppSystem = () => {
-  return {
+export const UpdateSystem: AppSystemInitializer = () => ({
     init: () => noop,
     logic: {
-      [Phases.Update]: [processMotion, processLoop],
+      [Phases.Update]: [processMotion, processLoop, processLerp],
     },
-  };
-};
+});
 
 const processLoop: AppProcessorFunction = (appRef) => {
   loop(appRef);
@@ -34,4 +32,13 @@ const applyFriction = (velocity: number, friction: number, dt: number): number =
   const next = velocity * (1 - decay);
 
   return next;
+};
+
+const processLerp: AppProcessorFunction = (app, timeParams) => {
+  const motion = app.motion;
+  const interpolated =
+    motion.current * timeParams.alpha + motion.previous * (1.0 - timeParams.alpha);
+  motion.offset = interpolated;
+
+  return app;
 };
