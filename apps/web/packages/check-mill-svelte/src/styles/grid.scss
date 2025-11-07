@@ -1,0 +1,21 @@
+.grid {
+	--gap-fallback: 4px;
+
+	display: grid;
+	gap: var(--row-gap, var(--gap-fallback)) var(--column-gap, var(--gap-fallback));
+
+	grid-template-columns: var(--columns, 1fr);
+
+	&-c2 {
+		--columns: 1fr 1fr;
+	}
+
+	&-c3 {
+		--columns: 1fr 1fr 1fr;
+	}
+
+	&-g8 {
+		--row-gap: 8px;
+		--column-gap: 8px;
+	}
+}

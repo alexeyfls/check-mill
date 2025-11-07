@@ -5,6 +5,7 @@ export interface SegmentedProps {
 	value?: string;
 	defaultValue?: string;
 	children: Snippet<[SegmentedItem]>;
+	onChange?: (value: string) => void;
 }
 
 export interface SegmentedItem {

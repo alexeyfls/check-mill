@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { dialogStore } from "../dialogs";
-	import { SettingsLazyDialog } from "../settings";
+	import { AppearanceLazyDialog } from "../appearance";
 
-	const openSettingsDialogAction = () => dialogStore.open(SettingsLazyDialog);
+	const openAppearanceDialogAction = () =>
+		dialogStore.open(AppearanceLazyDialog);
 </script>
 
 <div class="bar floating">
@@ -74,7 +75,7 @@
 			type="button"
 			class="action-btn"
 			aria-label="Customization"
-			on:click={openSettingsDialogAction}
+			on:click={openAppearanceDialogAction}
 		>
 			<svg
 				xmlns="http://www.w3.org/2000/svg"

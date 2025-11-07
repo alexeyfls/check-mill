@@ -4,19 +4,22 @@ export type TrapFocusOptions = {
 };
 
 /**
- * Svelte action that traps focus within a DOM node and handles Escape key
+ * Action that traps focus within a DOM node and handles Escape key
  * @param node - The DOM node to trap focus within
  * @param options - Optional configuration object
  * @returns An action object with destroy method
  */
-export function trapFocus(node: HTMLElement, options: TrapFocusOptions | null = {}) {
+export function trapFocus(
+	node: HTMLElement,
+	options: TrapFocusOptions | null = {}
+) {
 	if (options === null) {
 		return {
 			update(newOptions: TrapFocusOptions | null = {}) {
 				options = newOptions;
 			},
 
-			destroy() {}
+			destroy() {},
 		};
 	}
 
@@ -37,7 +40,7 @@ export function trapFocus(node: HTMLElement, options: TrapFocusOptions | null = 
 			return;
 		}
 
-		if (event.key === 'Tab') {
+		if (event.key === "Tab") {
 			const current = document.activeElement;
 			const elements = focusable();
 			const first = elements.at(0);
@@ -52,7 +55,7 @@ export function trapFocus(node: HTMLElement, options: TrapFocusOptions | null = 
 				first?.focus();
 				event.preventDefault();
 			}
-		} else if (event.key === 'Escape' && options.onEscape) {
+		} else if (event.key === "Escape" && options.onEscape) {
 			isClosingViaOutsideClick = true;
 			event.preventDefault();
 			options.onEscape();
@@ -60,7 +63,10 @@ export function trapFocus(node: HTMLElement, options: TrapFocusOptions | null = 
 	}
 
 	function handleFocusOut(event: FocusEvent) {
-		if (!node.contains(event.relatedTarget as Node) && event.relatedTarget !== previous) {
+		if (
+			!node.contains(event.relatedTarget as Node) &&
+			event.relatedTarget !== previous
+		) {
 			isFocusMovedOutside = true;
 		}
 	}
@@ -78,8 +84,8 @@ export function trapFocus(node: HTMLElement, options: TrapFocusOptions | null = 
 			}
 		}
 
-		node.addEventListener('keydown', handleKeydown);
-		node.addEventListener('focusout', handleFocusOut);
+		node.addEventListener("keydown", handleKeydown);
+		node.addEventListener("focusout", handleFocusOut);
 	}
 
 	function cleanup() {
@@ -87,8 +93,8 @@ export function trapFocus(node: HTMLElement, options: TrapFocusOptions | null = 
 			return;
 		}
 
-		node.removeEventListener('keydown', handleKeydown);
-		node.removeEventListener('focusout', handleFocusOut);
+		node.removeEventListener("keydown", handleKeydown);
+		node.removeEventListener("focusout", handleFocusOut);
 
 		if (!isClosingViaOutsideClick && !isFocusMovedOutside && previous) {
 			setTimeout(() => {
@@ -101,8 +107,8 @@ export function trapFocus(node: HTMLElement, options: TrapFocusOptions | null = 
 
 	return {
 		update(newOptions: TrapFocusOptions | null = {}) {
-			node.removeEventListener('keydown', handleKeydown);
-			node.removeEventListener('focusout', handleFocusOut);
+			node.removeEventListener("keydown", handleKeydown);
+			node.removeEventListener("focusout", handleFocusOut);
 
 			if (newOptions && newOptions.isClosing !== undefined) {
 				isClosingViaOutsideClick = newOptions.isClosing;
@@ -111,13 +117,13 @@ export function trapFocus(node: HTMLElement, options: TrapFocusOptions | null = 
 			options = newOptions;
 
 			if (options !== null) {
-				node.addEventListener('keydown', handleKeydown);
-				node.addEventListener('focusout', handleFocusOut);
+				node.addEventListener("keydown", handleKeydown);
+				node.addEventListener("focusout", handleFocusOut);
 			}
 		},
 		destroy() {
 			cleanup();
-		}
+		},
 	};
 }
 
@@ -127,7 +133,10 @@ export function trapFocus(node: HTMLElement, options: TrapFocusOptions | null = 
  * @param callback - Optional configuration object
  * @returns An action object with destroy method
  */
-export function clickOutside<T extends HTMLElement>(node: T, callback: VoidFunction) {
+export function clickOutside<T extends HTMLElement>(
+	node: T,
+	callback: VoidFunction
+) {
 	let currentCallback = callback;
 
 	const handleClick = (event: MouseEvent) => {
@@ -136,14 +145,40 @@ export function clickOutside<T extends HTMLElement>(node: T, callback: VoidFunct
 		}
 	};
 
-	document.addEventListener('click', handleClick, true);
+	document.addEventListener("click", handleClick, true);
 
 	return {
 		update(newCallback: VoidFunction) {
 			currentCallback = newCallback;
 		},
 		destroy() {
-			document.removeEventListener('click', handleClick, true);
-		}
+			document.removeEventListener("click", handleClick, true);
+		},
+	};
+}
+
+/**
+ * Action that automatically adjusts an element’s height
+ * based on its scroll height to fit its content.
+ *
+ * @param node - The DOM node whose height should auto-adjust
+ * @returns An action object with `update` and `destroy` methods
+ */
+export function autoheight<T extends HTMLElement>(node: T) {
+	function resize() {
+		node.style.height = node.scrollHeight + "px";
+		node.style.transition = "all .3s ease-in-out";
+		node.style.overflow = "hidden";
+	}
+
+	resize();
+
+	node.addEventListener("input", resize);
+
+	return {
+		update: resize,
+		destroy() {
+			node.removeEventListener("input", resize);
+		},
 	};
 }

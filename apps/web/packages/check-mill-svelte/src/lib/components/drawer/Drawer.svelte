@@ -12,6 +12,8 @@
 
 <style lang="scss">
 	.drawer {
+		--scrollable-ctx: auto;
+
 		position: fixed;
 		top: 8px;
 		right: 8px;

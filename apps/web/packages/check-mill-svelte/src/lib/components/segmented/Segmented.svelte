@@ -3,7 +3,13 @@
 	import type { SegmentedProps } from "./types";
 	import { onMount } from "svelte";
 
-	let { data = [], children, value, defaultValue }: SegmentedProps = $props();
+	let {
+		data = [],
+		children,
+		value,
+		defaultValue,
+		onChange,
+	}: SegmentedProps = $props();
 
 	let internalValue = $state(value ?? defaultValue ?? data[0]?.value ?? "");
 	let indicatorStyle = $state("");
@@ -13,6 +19,11 @@
 
 	onMount(updateIndicator);
 	$effect(updateIndicator);
+
+	function handleChange(value: string): void {
+		internalValue = value;
+		onChange?.(value);
+	}
 
 	function updateIndicator(): void {
 		const el = refs[internalValue];
@@ -47,6 +58,8 @@
 				type="radio"
 				name="segmented"
 				value={item.value}
+				checked={internalValue === item.value}
+				onchange={() => handleChange(item.value)}
 				hidden
 			/>
 			<div class="segmented-control__content">
@@ -89,5 +102,6 @@
 		border-radius: 8px;
 		background-color: #fff;
 		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+		transition: all 0.3s;
 	}
 </style>

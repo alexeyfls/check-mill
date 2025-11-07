@@ -31,7 +31,7 @@
 		activePointers += delta;
 
 		if (delta === 0) {
-			stuck = sheetEl.scrollTop >= panelEl.offsetTop;
+			stuck = sheetEl.scrollTop >= panelEl.offsetTop - 16;
 		}
 
 		if (!activePointers && sheetEl.scrollTop <= 0) {
@@ -61,9 +61,7 @@
 	</div>
 
 	<div bind:this={panelEl} class="sheet__panel" class:_stuck={stuck}>
-		<div class="sheet__scrollable-content">
-			<slot />
-		</div>
+		<slot />
 	</div>
 </div>
 
@@ -72,6 +70,7 @@
 		scrollbar-width: none;
 		display: block;
 		inline-size: 100%;
+		padding: 16px;
 		block-size: calc(100% - env(safe-area-inset-top));
 		overflow-y: scroll;
 		scroll-snap-type: y mandatory;
@@ -95,27 +94,25 @@
 		}
 
 		&__panel {
+			--scrollable-ctx: hidden;
+
 			position: relative;
 			display: flex;
 			flex-direction: column;
 			scrollbar-width: none;
 			inline-size: 100%;
+			border-radius: 24px;
 			height: 100%;
-			border-radius: 24px 24px 0 0;
 			margin: auto auto 0;
 			margin-block-start: auto;
 			background-color: #fff;
 			scroll-snap-stop: always;
 			scroll-snap-align: start;
-		}
+			overflow: hidden;
 
-		&__scrollable-content {
-			position: relative;
-			flex: 1;
-		}
-
-		&__panel._stuck &__scrollable-content {
-			overflow: auto;
+			&._stuck {
+				--scrollable-ctx: auto;
+			}
 		}
 	}
 </style>
