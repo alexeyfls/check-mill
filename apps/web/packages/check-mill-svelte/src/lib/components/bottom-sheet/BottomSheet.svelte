@@ -2,7 +2,7 @@
 	import { onMount } from "svelte";
 	import { slideY } from "./transitions";
 
-	import { dialogContext } from "../dialogs";
+	import { modalContext } from "../modals";
 
 	export let snapRatios = [0.25, 0.5, 0.75, 1];
 	export let initialSnapIndex = 0;
@@ -14,7 +14,7 @@
 	let panelEl: HTMLDivElement;
 	let snapMarkers: HTMLDivElement[] = new Array(snapRatios.length);
 
-	const { close } = dialogContext.read();
+	const { close } = modalContext.read();
 
 	onMount(() => {
 		const offsets = getSnapOffsets();

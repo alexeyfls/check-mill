@@ -1,9 +1,13 @@
 
 .scroller {
+    --gap: var(--scroller-gap, 8px);
+    --columns: var(--scroller-columns, 1);
+    --scroller-child-flex: 0 0 calc((100% - (var(--scroller-columns, 1) - 1) * var(--gap)) / var(--scroller-columns));
+
     display: flex;
     align-items: center;
     justify-content: flex-start;
-    gap: var(--scroller-gap, 8px);
+    gap: var(--gap);
     position: relative;
     width: calc(100% + 2 * var(--scroller-mx, 0px));
     padding: var(--scroller-my, 0px) var(--scroller-mx, 0px);

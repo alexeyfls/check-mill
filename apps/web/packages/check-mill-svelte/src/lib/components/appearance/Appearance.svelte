@@ -1,18 +1,15 @@
 <script lang="ts">
-	import { autoheight } from "../../utils/actions";
-
 	import { DialogSwitcher } from "../dialog-switcher";
-	import { dialogContext } from "../dialogs";
-	import { Segmented } from "../segmented";
+	import { modalContext } from "../modals";
 	import { MultiViewSection } from "../multi-view-section";
 
-	let { close } = dialogContext.read();
+	let { close } = modalContext.read();
 </script>
 
 <DialogSwitcher>
-	<div class="appearance">
-		<div class="appearance__header">
-			<h3 class="appearance__title">Appearance</h3>
+	<div class="modal-layout">
+		<div class="modal-layout__header">
+			<h3 class="modal-layout__title">Appearance</h3>
 
 			<button
 				type="button"
@@ -38,8 +35,8 @@
 			</button>
 		</div>
 
-		<div class="appearance__body">
-			<MultiViewSection title="Checkbox Variant">
+		<div class="modal-layout__body">
+			<MultiViewSection id="checkbox" title="Checkbox Variant">
 				{#each Array(8) as _, i}
 					<label class="radio-box">
 						<input type="radio" name="variant" class="radio-box__input" />
@@ -50,7 +47,7 @@
 				{/each}
 			</MultiViewSection>
 
-			<MultiViewSection title="Background patterns">
+			<MultiViewSection id="background" title="Background patterns">
 				{#each Array(8) as _, i}
 					<label class="radio-box">
 						<input type="radio" name="variant" class="radio-box__input" />
@@ -65,46 +62,10 @@
 </DialogSwitcher>
 
 <style lang="scss">
-	.appearance {
-		--padding-inline: 20px;
-
-		display: flex;
-		flex-direction: column;
-		width: 100%;
-		height: 100%;
-		color: #273f4f;
-		overflow: hidden;
-
-		&__header {
-			flex: none;
-			display: flex;
-			align-items: center;
-			justify-content: space-between;
-			height: 72px;
-			padding-inline: var(--padding-inline);
-			border-bottom: 1px solid rgba(230, 230, 230, 0.7);
-		}
-
-		&__title {
-			font-size: 1.25rem;
-			font-weight: 500;
-			color: #222;
-		}
-
-		&__body {
-			flex-grow: 1;
-			padding: 24px var(--padding-inline);
-			display: flex;
-			flex-direction: column;
-			gap: 32px;
-			overflow: var(--scrollable-ctx);
-		}
-	}
-
 	.radio-box {
 		position: relative;
 		width: 100%;
-		flex: none;
+		flex: var(--scroller-child-flex, none);
 		aspect-ratio: 1;
 		border-radius: 12px;
 		background-color: rgba(255, 255, 255, 0.9);

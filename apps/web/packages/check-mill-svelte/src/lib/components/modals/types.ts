@@ -1,12 +1,12 @@
-import type { SvelteComponent } from 'svelte';
+import type { SvelteComponent } from "svelte";
 
-export interface Dialog<T = unknown, Props = Record<string, unknown>> {
+export interface Modal<T = unknown, Props = Record<string, unknown>> {
 	component: LazyComponent;
 	props?: Props;
 	close: (result: T) => void;
 }
 
-export interface DialogProps {
+export interface ModalProps {
 	close: VoidFunction;
 }
 

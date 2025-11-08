@@ -1,15 +1,15 @@
 <script lang="ts">
-	import { dialogStore } from "./dialog.store";
-	import DialogContextProvider from "./DialogContextProvider.svelte";
+	import { modalStore } from "./modal.store";
+	import ModalContextProvider from "./ModalContextProvider.svelte";
 </script>
 
 <div class="root">
-	<div class="overlay" class:_visible={$dialogStore.length}></div>
-	{#each $dialogStore as { id, component } (id)}
-		<div class="dialog">
-			<DialogContextProvider {id}>
+	<div class="overlay" class:_visible={$modalStore.length}></div>
+	{#each $modalStore as { id, component } (id)}
+		<div class="modal">
+			<ModalContextProvider {id}>
 				<svelte:component this={component} />
-			</DialogContextProvider>
+			</ModalContextProvider>
 		</div>
 	{/each}
 </div>
@@ -28,14 +28,14 @@
 		overscroll-behavior: none;
 		overflow-wrap: break-word;
 
-		&:has(.dialog) {
+		&:has(.modal) {
 			pointer-events: auto;
 			overflow: auto;
 		}
 	}
 
 	.overlay,
-	.dialog {
+	.modal {
 		position: fixed;
 		inset: 0;
 		display: flex;
@@ -57,7 +57,7 @@
 		}
 	}
 
-	.dialog {
+	.modal {
 		position: sticky;
 		overscroll-behavior: none;
 		filter: brightness(0.25);

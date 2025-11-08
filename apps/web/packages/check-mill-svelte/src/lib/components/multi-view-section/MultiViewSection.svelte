@@ -1,10 +1,9 @@
 <script lang="ts">
 	import { Segmented } from "../segmented";
-	import { autoheight } from "../../utils";
-
 	import { Views, type MultiViewSectionProps } from "./types";
 
 	let {
+		id,
 		title,
 		children,
 		defaultView = Views.Scroller,
@@ -21,6 +20,7 @@
 	<div class="flex items-center justify-between gap-100">
 		<h4 class="h4">{title}</h4>
 		<Segmented
+			{id}
 			data={[{ value: Views.Scroller }, { value: Views.Grid }]}
 			defaultValue={view}
 			onChange={setView}
@@ -78,5 +78,6 @@
 	.scroller {
 		--scroller-mx: var(--padding-inline);
 		--scroller-my: 12px;
+		--scroller-columns: 3;
 	}
 </style>

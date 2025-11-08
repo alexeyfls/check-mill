@@ -3,29 +3,32 @@ import { writable } from "svelte/store";
 
 import type { LazyComponent } from "./types";
 
-type Dialog = {
+type Modal = {
 	id: number;
 	component: new (...args: unknown[]) => SvelteComponent;
 	props?: Record<string, unknown>;
 };
 
-function createDialogStore() {
-	const { subscribe, update } = writable<Dialog[]>([]);
+function createModalStore() {
+	const { subscribe, update } = writable<Modal[]>([]);
 	let idCounter = 0;
 
 	async function open(
-		lazyComponent: LazyComponent,
+		loader: LazyComponent,
 		props?: Record<string, unknown>
 	): Promise<number> {
-		const id = idCounter++;
-		const loaded = await lazyComponent();
-		update((dialogs) => [...dialogs, { id, component: loaded.default, props }]);
+		const modal: Modal = {
+			id: idCounter++,
+			component: (await loader()).default,
+			props,
+		};
 
-		return id;
+		update((modals) => [...modals, modal]);
+		return modal.id;
 	}
 
 	function close(id: number): void {
-		update((dialogs) => dialogs.filter((d) => d.id !== id));
+		update((modals) => modals.filter((d) => d.id !== id));
 	}
 
 	return {
@@ -35,4 +38,4 @@ function createDialogStore() {
 	};
 }
 
-export const dialogStore = createDialogStore();
+export const modalStore = createModalStore();

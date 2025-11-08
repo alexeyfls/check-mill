@@ -156,29 +156,3 @@ export function clickOutside<T extends HTMLElement>(
 		},
 	};
 }
-
-/**
- * Action that automatically adjusts an element’s height
- * based on its scroll height to fit its content.
- *
- * @param node - The DOM node whose height should auto-adjust
- * @returns An action object with `update` and `destroy` methods
- */
-export function autoheight<T extends HTMLElement>(node: T) {
-	function resize() {
-		node.style.height = node.scrollHeight + "px";
-		node.style.transition = "all .3s ease-in-out";
-		node.style.overflow = "hidden";
-	}
-
-	resize();
-
-	node.addEventListener("input", resize);
-
-	return {
-		update: resize,
-		destroy() {
-			node.removeEventListener("input", resize);
-		},
-	};
-}

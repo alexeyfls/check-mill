@@ -1,6 +1,7 @@
 import { type Snippet } from "svelte";
 
 export interface SegmentedProps {
+	id: string;
 	data: SegmentedItem[];
 	value?: string;
 	defaultValue?: string;

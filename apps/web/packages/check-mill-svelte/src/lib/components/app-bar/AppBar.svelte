@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { dialogStore } from "../dialogs";
+	import { modalStore } from "../modals";
 	import { AppearanceLazyDialog } from "../appearance";
 
 	const openAppearanceDialogAction = () =>
-		dialogStore.open(AppearanceLazyDialog);
+		modalStore.open(AppearanceLazyDialog);
 </script>
 
 <div class="bar floating">

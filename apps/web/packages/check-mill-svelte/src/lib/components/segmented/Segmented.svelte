@@ -4,6 +4,7 @@
 	import { onMount } from "svelte";
 
 	let {
+		id,
 		data = [],
 		children,
 		value,
@@ -14,7 +15,7 @@
 	let internalValue = $state(value ?? defaultValue ?? data[0]?.value ?? "");
 	let indicatorStyle = $state("");
 
-	let parentEl: HTMLDivElement;
+	let parentEl: HTMLElement;
 	let refs: Record<string, HTMLLabelElement> = {};
 
 	onMount(updateIndicator);
@@ -40,7 +41,7 @@
 	}
 </script>
 
-<div bind:this={parentEl} role="radiogroup" class="segmented">
+<fieldset bind:this={parentEl} role="radiogroup" class="segmented">
 	<div
 		class="indicator"
 		style={indicatorStyle}
@@ -48,15 +49,11 @@
 	></div>
 
 	{#each data as item (item.value)}
-		<label
-			bind:this={refs[item.value]}
-			for={item.value}
-			class="segmented-control"
-		>
+		<label bind:this={refs[item.value]} class="segmented-control">
 			<input
 				id={item.value}
 				type="radio"
-				name="segmented"
+				name={id + "-segmented"}
 				value={item.value}
 				checked={internalValue === item.value}
 				onchange={() => handleChange(item.value)}
@@ -67,7 +64,7 @@
 			</div>
 		</label>
 	{/each}
-</div>
+</fieldset>
 
 <style lang="scss">
 	.segmented {
@@ -87,6 +84,7 @@
 	.segmented-control {
 		position: relative;
 		padding: 4px;
+		cursor: pointer;
 
 		&__content {
 			display: flex;

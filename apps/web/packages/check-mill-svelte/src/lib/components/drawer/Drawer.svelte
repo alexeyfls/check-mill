@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { clickOutside } from "../../utils";
-	import { dialogContext } from "../dialogs";
+	import { modalContext } from "../modals";
 	import { slideX } from "./transitions";
 
-	const { close } = dialogContext.read();
+	const { close } = modalContext.read();
 </script>
 
 <div transition:slideX use:clickOutside={close} class="drawer floating">

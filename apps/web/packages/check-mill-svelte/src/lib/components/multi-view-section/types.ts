@@ -6,6 +6,7 @@ export enum Views {
 }
 
 export interface MultiViewSectionProps {
+	id: string;
 	title: string;
 	children: Snippet;
 	defaultView?: Views;
