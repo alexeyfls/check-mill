@@ -1,6 +1,6 @@
 
 .scroller {
-    --gap: var(--scroller-gap, 8px);
+    --gap: var(--scroller-gap, calc(2 * var(--spacing)));
     --columns: var(--scroller-columns, 1);
     --scroller-child-flex: 0 0 calc((100% - (var(--scroller-columns, 1) - 1) * var(--gap)) / var(--scroller-columns));
 

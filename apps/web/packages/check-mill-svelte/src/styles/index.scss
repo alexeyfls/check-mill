@@ -1,10 +1,13 @@
 @use "@check-mill/core/dist/core.css";
 
 @use "./normalize.scss";
+@use "./root.scss";
+@use "./gap.scss";
+@use "./flex.scss";
+@use "./grid.scss";
+@use "./paddings.scss";
+@use "./typography.scss";
 @use "./global.scss";
 @use "./buttons.scss";
 @use "./modals.scss";
-@use "./typography.scss";
 @use "./scroller.scss";
-@use "./flex.scss";
-@use "./grid.scss";

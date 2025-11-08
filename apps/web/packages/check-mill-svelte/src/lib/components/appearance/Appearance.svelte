@@ -37,7 +37,7 @@
 
 		<div class="modal-layout__body">
 			<MultiViewSection id="checkbox" title="Checkbox Variant">
-				{#each Array(8) as _, i}
+				{#each Array(16) as _, i}
 					<label class="radio-box">
 						<input type="radio" name="variant" class="radio-box__input" />
 						<div class="radio-box__media">
@@ -48,7 +48,7 @@
 			</MultiViewSection>
 
 			<MultiViewSection id="background" title="Background patterns">
-				{#each Array(8) as _, i}
+				{#each Array(16) as _, i}
 					<label class="radio-box">
 						<input type="radio" name="variant" class="radio-box__input" />
 						<div class="radio-box__media">
@@ -58,6 +58,8 @@
 				{/each}
 			</MultiViewSection>
 		</div>
+
+		<div class="modal-layout__footer"></div>
 	</div>
 </DialogSwitcher>
 

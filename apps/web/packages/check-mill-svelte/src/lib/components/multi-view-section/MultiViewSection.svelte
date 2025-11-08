@@ -11,13 +11,18 @@
 
 	let view = $state(defaultView);
 
+	const viewClassResolver: Record<Views, string> = {
+		[Views.Grid]: "grid gap-2 grid-cols-3",
+		[Views.Scroller]: "scroller",
+	};
+
 	function setView(value: Views): void {
 		view = value;
 	}
 </script>
 
-<section class="flex flex-column gap-075">
-	<div class="flex items-center justify-between gap-100">
+<section class="flex flex-column gap-4">
+	<div class="header flex items-center justify-between gap-4 py-inherit">
 		<h4 class="h4">{title}</h4>
 		<Segmented
 			{id}
@@ -64,20 +69,26 @@
 		</Segmented>
 	</div>
 
-	<div
-		class={[
-			view === Views.Grid && "grid grid-c3 grid-g8",
-			view === Views.Scroller && "scroller",
-		]}
-	>
-		{@render children()}
+	<div class="py-inherit pb-4">
+		<div class={viewClassResolver[view]}>
+			{@render children()}
+		</div>
 	</div>
 </section>
 
 <style lang="scss">
+	.header {
+		position: sticky;
+		top: 0;
+		height: calc(16 * var(--spacing));
+		background-color: white;
+		border-bottom: 1px solid rgba(230, 230, 230, 0.7);
+		z-index: 1;
+	}
+
 	.scroller {
 		--scroller-mx: var(--padding-inline);
-		--scroller-my: 12px;
+		--scroller-my: calc(var(--spacing) * 4);
 		--scroller-columns: 3;
 	}
 </style>

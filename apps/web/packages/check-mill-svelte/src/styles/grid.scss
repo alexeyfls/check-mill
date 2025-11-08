@@ -1,21 +1,18 @@
+$columns: 1, 2, 3, 4, 5, 6, 12;
+$rows: 1, 2, 3, 4, 5, 6;
+
 .grid {
-	--gap-fallback: 4px;
-
 	display: grid;
-	gap: var(--row-gap, var(--gap-fallback)) var(--column-gap, var(--gap-fallback));
+}
 
-	grid-template-columns: var(--columns, 1fr);
+@each $col in $columns {
+  .grid-cols-#{$col} {
+    grid-template-columns: repeat(#{$col}, 1fr);
+  }
+}
 
-	&-c2 {
-		--columns: 1fr 1fr;
-	}
-
-	&-c3 {
-		--columns: 1fr 1fr 1fr;
-	}
-
-	&-g8 {
-		--row-gap: 8px;
-		--column-gap: 8px;
-	}
+@each $row in $rows {
+  .grid-rows-#{$row} {
+    grid-template-rows: repeat(#{$row}, 1fr);
+  }
 }
