@@ -1,4 +1,4 @@
-$paddings: 0, 4, 8, 12, 16, 24, 32;
+$paddings: 0, 2, 4, 8, 12, 16, 24, 32;
 
 :root {
     --padding-inline: calc(5 * var(--spacing));

@@ -43,6 +43,7 @@
         align-items: center;
         flex: none;
         height: 72px;
+        padding-inline: var(--padding-inline);
         border-top: 1px solid rgba(230, 230, 230, 0.7);
     }
 }

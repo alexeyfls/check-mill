@@ -59,7 +59,9 @@
 			</MultiViewSection>
 		</div>
 
-		<div class="modal-layout__footer"></div>
+		<div class="modal-layout__footer py-4">
+			<button type="button" class="action-btn flex flex-grow">Apply</button>
+		</div>
 	</div>
 </DialogSwitcher>
 
