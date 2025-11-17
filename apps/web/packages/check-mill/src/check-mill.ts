@@ -20,7 +20,6 @@ import {
   throttle,
   createPhase,
   createMergedRunner,
-  measure,
 } from "./core";
 import { NetworkSystem, RenderSystem, ScrollSystem, UpdateSystem } from "./systems";
 
