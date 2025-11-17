@@ -1,6 +1,7 @@
 import {
   type AppRef,
   type AppProcessorFunction,
+  type AppSystemFactory,
   type SlidesRendererType,
   type TranslateType,
   type VisibilityTrackerType,
@@ -9,13 +10,12 @@ import {
   SlidesRenderer,
   Translate,
   appProcessorThrottled,
-  VisibilityTracker,
   writeVariables,
+  createVisibilityTracker,
 } from "../components";
 import { type Disposable, DisposableStoreId, createDisposableStore } from "../core";
-import { type AppSystemInitializer } from "./system";
 
-export const RenderSystem: AppSystemInitializer = (appRef: AppRef) => {
+export const RenderSystem: AppSystemFactory = (appRef: AppRef) => {
   let renderer: SlidesRendererType;
   let translate: TranslateType;
   let visibilityTracker: VisibilityTrackerType;
@@ -75,11 +75,7 @@ export const RenderSystem: AppSystemInitializer = (appRef: AppRef) => {
   return {
     init,
     logic: {
-      [Phases.Render]: [
-        syncOffset,
-        applyTranslation,
-        appProcessorThrottled(syncVisibility, 160),
-      ],
+      [Phases.Render]: [syncOffset, applyTranslation, appProcessorThrottled(syncVisibility, 160)],
     },
   };
 };

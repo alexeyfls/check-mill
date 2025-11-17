@@ -1,22 +1,26 @@
 import {
   type AppProcessorFunction,
   type AppRef,
+  type AppSystemInstance,
   AppDirtyFlags,
   Phases,
-  App,
   Viewport,
+  createAppRef,
+  createPhasePipeline,
+  mergePipelines,
+  collectSystemLogic,
 } from "./components";
 import {
   type Disposable,
-  type PhasePredicate,
   type RenderLoopType,
-  type TimeParams,
   DisposableStoreId,
-  Processor,
   RenderLoop,
   createDisposableStore,
   event,
   throttle,
+  createPhase,
+  createMergedRunner,
+  measure,
 } from "./core";
 import { NetworkSystem, RenderSystem, ScrollSystem, UpdateSystem } from "./systems";
 
@@ -24,118 +28,122 @@ export type CheckMillType = {
   destroy: Disposable;
 };
 
+/**
+ * Internal state "struct" for the entire application.
+ */
+type ApplicationState = {
+  appRef: AppRef;
+  readonly disposables: ReturnType<typeof createDisposableStore>;
+  renderLoop: RenderLoopType | null;
+
+  readExecutor: AppProcessorFunction | null;
+  writeExecutor: AppProcessorFunction | null;
+};
+
+/**
+ * Initializes and starts the CheckMill application.
+ *
+ * @param root - The root HTML element for viewport calculations.
+ * @param container - The main container element for the application.
+ * @returns A promise that resolves to the application's public API.
+ */
 export function CheckMill(root: HTMLElement, container: HTMLElement): Promise<CheckMillType> {
-  const application = new Application(root, container);
-  return Promise.resolve(application);
+  const appState: ApplicationState = {
+    appRef: createAppRef(root, container),
+    disposables: createDisposableStore(),
+    renderLoop: null,
+    readExecutor: null,
+    writeExecutor: null,
+  };
+
+  setupStaticListeners(appState);
+  reconfigure(appState);
+
+  appState.renderLoop = RenderLoop(
+    appState.appRef.owner.window,
+    (t) => appState.readExecutor!(appState.appRef, t),
+    (t) => appState.writeExecutor!(appState.appRef, t),
+    60 /* fps */
+  );
+
+  appState.renderLoop.start();
+
+  const destroy = (): void => {
+    appState.renderLoop?.stop();
+    appState.disposables.flushAll();
+  };
+
+  return Promise.resolve({ destroy });
 }
 
 /**
- * Manages the entire lifecycle of the application, including initial setup,
- * per-frame execution, and dynamic reconfiguration on resize.
+ * Tears down and rebuilds all layout-dependent systems and the processor pipeline.
+ *
+ * @param appState - The central application state object.
  */
-class Application {
-  private appRef: AppRef;
-  private disposables = createDisposableStore();
-  private renderLoop: RenderLoopType;
+function reconfigure(appState: ApplicationState): void {
+  appState.disposables.flush(DisposableStoreId.Reconfigurable);
 
-  private readExecutor: AppProcessorFunction | null = null;
-  private writeExecutor: AppProcessorFunction | null = null;
+  const prevAppRef = appState.appRef;
+  appState.appRef = createAppRef(prevAppRef.owner.root, prevAppRef.owner.container);
 
-  constructor(root: HTMLElement, container: HTMLElement) {
-    this.appRef = App(root, container);
+  const prependPipeline = createPhasePipeline();
+  prependPipeline[Phases.IO].push(isInteracted);
+  prependPipeline[Phases.Cleanup].push(resetInteractionState);
 
-    this.setupStaticListeners();
-    this.reconfigure();
+  const systems: AppSystemInstance[] = [
+    NetworkSystem(appState.appRef),
+    ScrollSystem(appState.appRef),
+    UpdateSystem(appState.appRef),
+    RenderSystem(appState.appRef),
+  ];
 
-    this.renderLoop = RenderLoop(
-      this.appRef.owner.window,
-      (t) => this.readExecutor!(this.appRef, t),
-      (t) => this.writeExecutor!(this.appRef, t),
-      60 /* fps */
-    );
+  const finalPipeline = mergePipelines([prependPipeline, collectSystemLogic(systems)]);
 
-    this.renderLoop.start();
+  for (const system of systems) {
+    appState.disposables.push(DisposableStoreId.Reconfigurable, system.init());
   }
 
-  /**
-   * Public method to tear down the entire application.
-   */
-  public destroy(): void {
-    this.renderLoop.stop();
-    this.disposables.flushAll();
-  }
+  appState.readExecutor = createMergedRunner([
+    createPhase(Phases.IO, finalPipeline[Phases.IO]),
+    createPhase(Phases.Update, finalPipeline[Phases.Update]),
+  ]);
 
-  /**
-   * Tears down and rebuilds all layout-dependent systems and the processor pipeline.
-   */
-  private reconfigure(): void {
-    this.disposables.flush(DisposableStoreId.Reconfigurable);
-
-    const prevAppRef = this.appRef;
-    this.appRef = App(prevAppRef.owner.root, prevAppRef.owner.container);
-
-    const ioPhase = Processor.phase<AppRef, TimeParams>(Phases.IO).runIf(isInteracted);
-    const updatePhase = Processor.phase<AppRef, TimeParams>(Phases.Update);
-    const renderPhase = Processor.phase<AppRef, TimeParams>(Phases.Render);
-    const cleanUpPhase = Processor.phase<AppRef, TimeParams>(Phases.Cleanup).add(
-      resetInteractionState
-    );
-
-    const systems = [
-      NetworkSystem(this.appRef),
-      ScrollSystem(this.appRef),
-      UpdateSystem(this.appRef),
-      RenderSystem(this.appRef),
-    ];
-
-    for (const system of systems) {
-      ioPhase.pipe(system.logic[Phases.IO] ?? []);
-      updatePhase.pipe(system.logic[Phases.Update] ?? []);
-      renderPhase.pipe(system.logic[Phases.Render] ?? []);
-      cleanUpPhase.pipe(system.logic[Phases.Cleanup] ?? []);
-
-      this.disposables.push(DisposableStoreId.Reconfigurable, system.init());
-    }
-
-    // prettier-ignore
-    {
-      this.readExecutor = Processor
-        .merge([ioPhase, updatePhase].map(p => p.runner()))
-        .executor();
-
-      this.writeExecutor = Processor
-        .merge([renderPhase, cleanUpPhase].map(p => p.runner()))
-        .executor();
-    }
-  }
-
-  /**
-   * Sets up long-lived event listeners like ResizeObserver.
-   */
-  private setupStaticListeners(): void {
-    const viewport = Viewport(this.appRef.owner.root);
-    const throttledReconfigure = throttle(() => this.reconfigure(), 300);
-
-    viewport.resized.register(throttledReconfigure);
-
-    const onVisibilityChange = (_event: Event): void => {
-      if (this.appRef.owner.document.hidden) {
-        this.renderLoop.stop();
-      } else {
-        this.renderLoop.start();
-      }
-    };
-
-    this.disposables.push(
-      DisposableStoreId.Static,
-      viewport.init(),
-      event(this.appRef.owner.document, "visibilitychange", onVisibilityChange)
-    );
-  }
+  appState.writeExecutor = createMergedRunner([
+    createPhase(Phases.Render, finalPipeline[Phases.Render]),
+    createPhase(Phases.Cleanup, finalPipeline[Phases.Cleanup]),
+  ]);
 }
 
-const isInteracted: PhasePredicate<AppRef> = (appRef: AppRef): boolean => {
-  return appRef.dirtyFlags.is(AppDirtyFlags.Interacted);
+/**
+ * Sets up long-lived, static event listeners
+ * that persist for the entire application lifecycle.
+ *
+ * @param appState - The central application state object.
+ */
+function setupStaticListeners(appState: ApplicationState): void {
+  const viewport = Viewport(appState.appRef.owner.root);
+  const throttledReconfigure = throttle(() => reconfigure(appState), 300);
+
+  viewport.resized.register(throttledReconfigure);
+
+  const onVisibilityChange = (_event: Event): void => {
+    if (appState.appRef.owner.document.hidden) {
+      appState.renderLoop?.stop();
+    } else {
+      appState.renderLoop?.start();
+    }
+  };
+
+  appState.disposables.push(
+    DisposableStoreId.Static,
+    viewport.init(),
+    event(appState.appRef.owner.document, "visibilitychange", onVisibilityChange)
+  );
+}
+
+const isInteracted: AppProcessorFunction = (appRef: AppRef) => {
+  return appRef.dirtyFlags.is(AppDirtyFlags.Interacted) ? appRef : null;
 };
 
 const resetInteractionState: AppProcessorFunction = (appRef: AppRef): AppRef => {

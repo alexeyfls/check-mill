@@ -1,6 +1,7 @@
 import {
   type AppProcessorFunction,
   type AppRef,
+  type AppSystemFactory,
   type GestureEvent,
   AppDirtyFlags,
   GestureState,
@@ -9,9 +10,8 @@ import {
   Wheel,
 } from "../components";
 import { type Disposable, DisposableStoreId, createDisposableStore } from "../core";
-import { type AppSystemInitializer } from "./system";
 
-export const ScrollSystem: AppSystemInitializer = (appRef: AppRef) => {
+export const ScrollSystem: AppSystemFactory = (appRef: AppRef) => {
   const init = (): Disposable => {
     const drag = Drag(appRef.owner.root, appRef.axis);
     const wheel = Wheel(appRef.owner.root, appRef.axis);

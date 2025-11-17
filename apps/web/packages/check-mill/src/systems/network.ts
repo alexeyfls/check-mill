@@ -1,7 +1,7 @@
+import type { AppSystemFactory } from "../components";
 import { noop } from "../core";
-import { AppSystem } from "./system";
 
-export const NetworkSystem: AppSystem = (_appRef) => {
+export const NetworkSystem: AppSystemFactory = (_appRef) => {
   return {
     init: () => noop,
     logic: {},

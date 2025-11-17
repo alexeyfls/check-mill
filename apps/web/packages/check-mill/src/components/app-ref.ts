@@ -3,6 +3,8 @@ import {
   type ProcessorFunction,
   type TimeParams,
   createFlagManager,
+  SystemFactory,
+  SystemInstance,
   UintXBitSet,
 } from "../core";
 import { assert } from "../core";
@@ -46,6 +48,66 @@ export interface AppRef {
 
 export type AppProcessorFunction = ProcessorFunction<AppRef, TimeParams>;
 
+export type AppSystemInstance = SystemInstance<Phases, AppRef, TimeParams>;
+
+export type AppSystemFactory = SystemFactory<Phases, AppRef, TimeParams>;
+
+export type PhasePipeline = Record<Phases, AppProcessorFunction[]>;
+
+/**
+ * Creates an empty pipeline object, mapping each phase to an empty
+ * function array.
+ *
+ * @returns A new PhasePipeline.
+ */
+export function createPhasePipeline(): PhasePipeline {
+  return {
+    [Phases.IO]: [],
+    [Phases.Update]: [],
+    [Phases.Render]: [],
+    [Phases.Cleanup]: [],
+  };
+}
+
+/**
+ * Collects and merges processor functions from multiple systems into a
+ * single record organized by phase.
+ *
+ * @param systems An array of AppSystemInstance objects.
+ * @returns A new PhasePipeline.
+ */
+export function collectSystemLogic(systems: AppSystemInstance[]): PhasePipeline {
+  const collectedLogic = createPhasePipeline();
+
+  for (const system of systems) {
+    collectedLogic[Phases.IO].push(...(system.logic[Phases.IO] ?? []));
+    collectedLogic[Phases.Update].push(...(system.logic[Phases.Update] ?? []));
+    collectedLogic[Phases.Render].push(...(system.logic[Phases.Render] ?? []));
+    collectedLogic[Phases.Cleanup].push(...(system.logic[Phases.Cleanup] ?? []));
+  }
+
+  return collectedLogic;
+}
+
+/**
+ * Merges multiple phase pipelines into a single pipeline.
+ *
+ * @param pipelines An array of PhasePipeline objects.
+ * @returns A single, combined PhasePipeline.
+ */
+export function mergePipelines(pipelines: PhasePipeline[]): PhasePipeline {
+  const merged = createPhasePipeline();
+
+  for (const pipeline of pipelines) {
+    merged[Phases.IO].push(...pipeline[Phases.IO]);
+    merged[Phases.Update].push(...pipeline[Phases.Update]);
+    merged[Phases.Render].push(...pipeline[Phases.Render]);
+    merged[Phases.Cleanup].push(...pipeline[Phases.Cleanup]);
+  }
+
+  return merged;
+}
+
 /**
  * Creates a throttled version of a processor function that only invokes the
  * original function at most once per every `delay` milliseconds.
@@ -75,7 +137,7 @@ export function appProcessorThrottled(
   };
 }
 
-export function App(root: HTMLElement, container: HTMLElement): AppRef {
+export function createAppRef(root: HTMLElement, container: HTMLElement): AppRef {
   const document = root.ownerDocument;
   const window = document.defaultView;
   assert(window, "Window object not available for provided root element");

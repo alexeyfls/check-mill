@@ -1,12 +1,11 @@
-import { type AppProcessorFunction, Phases, loop } from "../components";
+import { type AppProcessorFunction, type AppSystemFactory, Phases, loop } from "../components";
 import { noop } from "../core";
-import { type AppSystemInitializer } from "./system";
 
-export const UpdateSystem: AppSystemInitializer = () => ({
-    init: () => noop,
-    logic: {
-      [Phases.Update]: [processMotion, processLoop, processLerp],
-    },
+export const UpdateSystem: AppSystemFactory = () => ({
+  init: () => noop,
+  logic: {
+    [Phases.Update]: [processMotion, processLoop, processLerp],
+  },
 });
 
 const processLoop: AppProcessorFunction = (appRef) => {
