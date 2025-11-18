@@ -1,7 +1,8 @@
 <script lang="ts">
+	import { CheckMillRenderer } from "@check-mill/svelte";
+
 	import { Dialogs } from "./lib/components/modals";
 	import { AppBar } from "./lib/components/app-bar";
-	import { CheckMillRenderer } from "./lib/components/check-mill-renderer";
 </script>
 
 <div class="content">

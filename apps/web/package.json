@@ -1,7 +1,8 @@
 {
-  "private": true,
-  "name": "check-mill-monorepo",
-  "workspaces": [
-    "packages/*"
-  ]
+	"private": true,
+	"name": "check-mill-monorepo",
+	"workspaces": [
+		"check-mill-app",
+		"packages/*"
+	]
 }

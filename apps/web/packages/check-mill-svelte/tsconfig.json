@@ -1,0 +1,13 @@
+{
+	"extends": "./.svelte-kit/tsconfig.json",
+	"compilerOptions": {
+		"strict": true,
+		"declaration": true,
+		"declarationMap": true,
+		"emitDeclarationOnly": false,
+		"moduleResolution": "bundler",
+		"verbatimModuleSyntax": true,
+		"rootDir": "src",
+		"outDir": "dist/types"
+	}
+}
