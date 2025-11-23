@@ -11,53 +11,32 @@ export enum LoopOperation {
 }
 
 /**
- * A pure, stateless function that manages the logic for a virtualized infinite scroller.
- *
- * It checks if the scroll position has crossed the looping "seams". If it has,
- * this function performs two critical actions to create a seamless illusion:
- *
- * 1.  It virtually repositions slides by updating their `virtualIndex` and
- * `viewportOffset` properties. The main `slides` array is NEVER reordered.
- * 2.  It instantly jumps the scroll offset (`motion.offset`) to match the
- * virtual repositioning, making the change invisible to the user.
+ * Function that manages the logic for a virtualized infinite scroller.
  *
  * @param appRef The complete, current application state for this frame.
  * @returns `true` if the looping state was changed, otherwise `false`.
  */
 export function loop(appRef: AppRef): boolean {
-  const { motion, slides, layout } = appRef;
-  const { slide, contentArea, slideCount, slideSpacing, viewportRect } = layout;
+  const { motion, layout } = appRef;
+  const { contentArea, slideSpacing } = layout;
 
-  const topLoopBound = 0;
-  const bottomLoopBound = -contentArea.height + viewportRect.height;
-  let desiredOperation = LoopOperation.None;
+  const nextOperation = getNextOperation(appRef);
+  const previousOperation = getPreviousOperation(appRef);
 
-  if (motion.offset > topLoopBound) {
-    desiredOperation = LoopOperation.ShiftedUp;
-  } else if (motion.offset < bottomLoopBound) {
-    desiredOperation = LoopOperation.ShiftedDown;
-  }
-
-  const lastOperation =
-    slides[0].viewportOffset === 1
-      ? LoopOperation.ShiftedDown
-      : slides[slides.length - 1].viewportOffset === -1
-      ? LoopOperation.ShiftedUp
-      : LoopOperation.None;
-
-  if (desiredOperation === lastOperation) {
+  if (nextOperation === previousOperation) {
     return false;
   }
 
-  applyShift(appRef, desiredOperation);
+  applyShift(appRef, nextOperation);
 
-  const distanceToJump = slideCount.buffer * (slide.height + slideSpacing);
-  switch (desiredOperation) {
+  const moveDistance = contentArea.height - slideSpacing;
+
+  switch (nextOperation) {
     case LoopOperation.ShiftedUp:
-      move(motion, -distanceToJump);
+      move(motion, -1 * moveDistance);
       break;
     case LoopOperation.ShiftedDown:
-      move(motion, distanceToJump);
+      move(motion, moveDistance);
       break;
   }
 
@@ -77,25 +56,58 @@ function applyShift(appRef: AppRef, operation: LoopOperation): void {
     const slide = appRef.slides[i];
 
     switch (operation) {
-      case LoopOperation.ShiftedUp:
-        if (i >= appRef.slides.length - appRef.layout.slideCount.buffer) {
+      case LoopOperation.ShiftedDown:
+        if (i >= appRef.slides.length - appRef.layout.slideCount.inView) {
           slide.virtualIndex = slide.realIndex - appRef.layout.slideCount.total;
           slide.viewportOffset = -1;
-        } else {
-          slide.virtualIndex = slide.realIndex;
-          slide.viewportOffset = 0;
         }
         break;
 
-      case LoopOperation.ShiftedDown:
-        if (i < appRef.layout.slideCount.buffer) {
+      case LoopOperation.ShiftedUp:
+        if (i < appRef.layout.slideCount.inView) {
           slide.virtualIndex = slide.realIndex + appRef.layout.slideCount.total;
           slide.viewportOffset = 1;
-        } else {
-          slide.virtualIndex = slide.realIndex;
-          slide.viewportOffset = 0;
         }
         break;
     }
   }
+}
+
+function getNextOperation(appRef: AppRef): LoopOperation {
+  const { motion } = appRef;
+
+  const [topLoopBound, bottomLoopBound] = computeLoopBounds(appRef);
+  let desiredOperation = LoopOperation.None;
+
+  if (motion.offset > topLoopBound) {
+    desiredOperation = LoopOperation.ShiftedUp;
+  } else if (motion.offset < bottomLoopBound) {
+    desiredOperation = LoopOperation.ShiftedDown;
+  }
+
+  return desiredOperation;
+}
+
+function getPreviousOperation(appRef: AppRef): LoopOperation {
+  const { slides } = appRef;
+
+  if (slides[0].viewportOffset === 1) {
+    return LoopOperation.ShiftedDown;
+  }
+
+  if (slides[slides.length - 1].viewportOffset === -1) {
+    return LoopOperation.ShiftedUp;
+  }
+
+  return LoopOperation.None;
+}
+
+function computeLoopBounds(appRef: AppRef): [number, number] {
+  const { layout } = appRef;
+  const { contentArea, viewportRect } = layout;
+
+  const topLoopBound = 0;
+  const bottomLoopBound = -contentArea.height + viewportRect.height;
+
+  return [topLoopBound, bottomLoopBound];
 }

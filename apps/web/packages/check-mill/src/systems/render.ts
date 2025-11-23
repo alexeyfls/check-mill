@@ -72,10 +72,25 @@ export const RenderSystem: AppSystemFactory = (appRef: AppRef) => {
     return app;
   };
 
+  const lerp: AppProcessorFunction = (app, timeParams) => {
+    const motion = app.motion;
+
+    const interpolated =
+      motion.current * timeParams.alpha + motion.previous * (1.0 - timeParams.alpha);
+    motion.offset = interpolated;
+
+    return app;
+  };
+
   return {
     init,
     logic: {
-      [Phases.Render]: [syncOffset, applyTranslation, appProcessorThrottled(syncVisibility, 160)],
+      [Phases.Render]: [
+        lerp,
+        syncOffset,
+        applyTranslation,
+        appProcessorThrottled(syncVisibility, 160),
+      ],
     },
   };
 };

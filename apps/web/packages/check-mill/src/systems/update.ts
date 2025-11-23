@@ -4,7 +4,7 @@ import { noop } from "../core";
 export const UpdateSystem: AppSystemFactory = () => ({
   init: () => noop,
   logic: {
-    [Phases.Update]: [processMotion, processLoop, processLerp],
+    [Phases.Update]: [processInertia, processLoop],
   },
 });
 
@@ -13,14 +13,20 @@ const processLoop: AppProcessorFunction = (appRef) => {
   return appRef;
 };
 
-const processMotion: AppProcessorFunction = (app, timeParams) => {
+export const processInertia: AppProcessorFunction = (app, timeParams) => {
   const motion = app.motion;
-  const integrated = applyFriction(motion.velocity, 0.75, timeParams.dt);
-  const displacement = motion.current + integrated - motion.previous;
 
-  motion.velocity = integrated;
+  const integratedVelocity = applyFriction(
+    motion.velocity,
+    0.75 /* friction factor */,
+    timeParams.dt
+  );
+
+  const displacement = integratedVelocity;
+
+  motion.velocity = integratedVelocity;
   motion.previous = motion.current;
-  motion.current += integrated;
+  motion.current += displacement;
   motion.direction = Math.sign(displacement);
 
   return app;
@@ -31,13 +37,4 @@ const applyFriction = (velocity: number, friction: number, dt: number): number =
   const next = velocity * (1 - decay);
 
   return next;
-};
-
-const processLerp: AppProcessorFunction = (app, timeParams) => {
-  const motion = app.motion;
-  const interpolated =
-    motion.current * timeParams.alpha + motion.previous * (1.0 - timeParams.alpha);
-  motion.offset = interpolated;
-
-  return app;
 };

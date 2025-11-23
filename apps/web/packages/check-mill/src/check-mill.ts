@@ -87,7 +87,6 @@ function reconfigure(appState: ApplicationState): void {
   appState.appRef = createAppRef(prevAppRef.owner.root, prevAppRef.owner.container);
 
   const prependPipeline = createPhasePipeline();
-  prependPipeline[Phases.IO].push(isInteracted);
   prependPipeline[Phases.Cleanup].push(resetInteractionState);
 
   const systems: AppSystemInstance[] = [
@@ -140,10 +139,6 @@ function setupStaticListeners(appState: ApplicationState): void {
     event(appState.appRef.owner.document, "visibilitychange", onVisibilityChange)
   );
 }
-
-const isInteracted: AppProcessorFunction = (appRef: AppRef) => {
-  return appRef.dirtyFlags.is(AppDirtyFlags.Interacted) ? appRef : null;
-};
 
 const resetInteractionState: AppProcessorFunction = (appRef: AppRef): AppRef => {
   appRef.dirtyFlags.unset(AppDirtyFlags.Interacted);
