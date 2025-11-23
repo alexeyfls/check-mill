@@ -1,8 +1,9 @@
 import { type AppRef } from "./app-ref";
-import { move } from "./scroll-motion";
+import { moveTo } from "./scroll-motion";
 
 /**
- * Describes the virtual state of the slide loop.
+ * Describes the virtual state of the slide loop (the direction of the shift).
+ * 'None' is used primarily for initialization.
  */
 export enum LoopOperation {
   None,
@@ -11,103 +12,119 @@ export enum LoopOperation {
 }
 
 /**
- * Function that manages the logic for a virtualized infinite scroller.
+ * Global state to track the last applied loop operation.
+ * This is an optimization to prevent redundant virtual slide updates
+ * when the desired shift state has not changed.
+ */
+let previousOperation = LoopOperation.None;
+
+/**
+ * Manages the logic for a virtualized infinite scroller.
  *
  * @param appRef The complete, current application state for this frame.
- * @returns `true` if the looping state was changed, otherwise `false`.
  */
-export function loop(appRef: AppRef): boolean {
-  const { motion, layout } = appRef;
-  const { contentArea, slideSpacing } = layout;
-
-  const nextOperation = getNextOperation(appRef);
-  const previousOperation = getPreviousOperation(appRef);
-
-  if (nextOperation === previousOperation) {
-    return false;
-  }
-
-  applyShift(appRef, nextOperation);
-
-  const moveDistance = contentArea.height - slideSpacing;
-
-  switch (nextOperation) {
-    case LoopOperation.ShiftedUp:
-      move(motion, -1 * moveDistance);
-      break;
-    case LoopOperation.ShiftedDown:
-      move(motion, moveDistance);
-      break;
-  }
-
-  return true;
+export function loop(appRef: AppRef): void {
+  resetScrollPosition(appRef);
+  updateSlideVirtualState(appRef);
 }
 
 /**
- * An efficient helper that mutates the slides' virtual properties in a single pass.
+ * Resets the physical scroll position back into the defined range [moveDistance, 0].
+ * This operation is critical for hiding the loop mechanism and must occur before
+ * updating the virtual slide state to prevent visual flickering.
  */
-function applyShift(appRef: AppRef, operation: LoopOperation): void {
+function resetScrollPosition(appRef: AppRef): void {
+  const { motion, layout } = appRef;
+  const { contentArea, slideSpacing } = layout;
+
+  const moveDistance = -1 * contentArea.height + slideSpacing;
+  moveTo(motion, wrapPosition(motion.current, moveDistance, 0));
+}
+
+/**
+ * Updates the slides' virtual properties (virtualIndex and viewportOffset)
+ * based on the current physical scroll position.
+ *
+ * @param appRef The complete, current application state.
+ */
+function updateSlideVirtualState(appRef: AppRef): void {
+  const desiredOperation = calculateLoopOperation(appRef);
+
+  if (desiredOperation === previousOperation) return;
+
+  previousOperation = desiredOperation;
+
+  initializeSlideVirtualState(appRef);
+
+  switch (desiredOperation) {
+    case LoopOperation.ShiftedUp:
+      applyShiftUp(appRef);
+      break;
+
+    case LoopOperation.ShiftedDown:
+      applyShiftDown(appRef);
+      break;
+  }
+}
+
+/**
+ * Initializes the virtual state for all slides to their real (non-shifted) position.
+ * This is the baseline state before any virtual wrapping is applied.
+ */
+function initializeSlideVirtualState(appRef: AppRef): void {
   for (const slide of appRef.slides) {
     slide.viewportOffset = 0;
     slide.virtualIndex = slide.realIndex;
   }
-
-  for (let i = 0; i < appRef.slides.length; i++) {
-    const slide = appRef.slides[i];
-
-    switch (operation) {
-      case LoopOperation.ShiftedDown:
-        if (i >= appRef.slides.length - appRef.layout.slideCount.inView) {
-          slide.virtualIndex = slide.realIndex - appRef.layout.slideCount.total;
-          slide.viewportOffset = -1;
-        }
-        break;
-
-      case LoopOperation.ShiftedUp:
-        if (i < appRef.layout.slideCount.inView) {
-          slide.virtualIndex = slide.realIndex + appRef.layout.slideCount.total;
-          slide.viewportOffset = 1;
-        }
-        break;
-    }
-  }
 }
 
-function getNextOperation(appRef: AppRef): LoopOperation {
-  const { motion } = appRef;
+/**
+ * Determines whether the slides should be virtually shifted up or down.
+ * The shift is triggered when the scroll position moves past the "midpoint"
+ * of the scrollable content area.
+ *
+ * @returns The required loop operation.
+ */
+function calculateLoopOperation(appRef: AppRef): LoopOperation {
+  const { layout, motion } = appRef;
+  const midPosition = layout.contentArea.height / 2;
 
-  const [topLoopBound, bottomLoopBound] = computeLoopBounds(appRef);
-  let desiredOperation = LoopOperation.None;
-
-  if (motion.offset > topLoopBound) {
-    desiredOperation = LoopOperation.ShiftedUp;
-  } else if (motion.offset < bottomLoopBound) {
-    desiredOperation = LoopOperation.ShiftedDown;
-  }
-
-  return desiredOperation;
+  return Math.abs(motion.current) > midPosition
+    ? LoopOperation.ShiftedDown
+    : LoopOperation.ShiftedUp;
 }
 
-function getPreviousOperation(appRef: AppRef): LoopOperation {
-  const { slides } = appRef;
+/**
+ * Applies the virtual shift logic for a "ShiftedUp" operation.
+ * This shifts the slides at the end of the array to the virtual start.
+ */
+function applyShiftUp(appRef: AppRef): void {
+  const { slides, layout } = appRef;
+  const numToWrap = layout.slideCount.inView;
+  const totalSlides = layout.slideCount.total;
 
-  if (slides[0].viewportOffset === 1) {
-    return LoopOperation.ShiftedDown;
-  }
-
-  if (slides[slides.length - 1].viewportOffset === -1) {
-    return LoopOperation.ShiftedUp;
-  }
-
-  return LoopOperation.None;
+  slides.slice(slides.length - numToWrap).forEach((slide) => {
+    slide.virtualIndex = slide.realIndex - totalSlides;
+    slide.viewportOffset = -1;
+  });
 }
 
-function computeLoopBounds(appRef: AppRef): [number, number] {
-  const { layout } = appRef;
-  const { contentArea, viewportRect } = layout;
+/**
+ * Applies the virtual shift logic for a "ShiftedDown" operation.
+ * This shifts the slides at the beginning of the array to the virtual end.
+ */
+function applyShiftDown(appRef: AppRef): void {
+  const { slides, layout } = appRef;
+  const numToWrap = layout.slideCount.inView;
+  const totalSlides = layout.slideCount.total;
 
-  const topLoopBound = 0;
-  const bottomLoopBound = -contentArea.height + viewportRect.height;
+  slides.slice(0, numToWrap).forEach((slide) => {
+    slide.virtualIndex = slide.realIndex + totalSlides;
+    slide.viewportOffset = 1;
+  });
+}
 
-  return [topLoopBound, bottomLoopBound];
+function wrapPosition(x: number, min: number, max: number): number {
+  const length = max - min;
+  return ((((x - min) % length) + length) % length) + min;
 }
