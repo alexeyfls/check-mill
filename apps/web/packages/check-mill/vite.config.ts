@@ -6,7 +6,7 @@ export default defineConfig({
   build: {
     lib: {
       entry: path.resolve(__dirname, "src/index.ts"),
-      name: "check-mill",
+      name: "CheckMill",
       fileName: (format) => `index.${format}.js`,
       formats: ["es", "cjs"],
     },
@@ -15,5 +15,12 @@ export default defineConfig({
     target: "es2020",
     minify: true,
   },
-  plugins: [dts()],
+  plugins: [
+    dts({
+      tsconfigPath: "./tsconfig.build.json",
+      entryRoot: "src",
+      outDir: "dist",
+      insertTypesEntry: true,
+    }),
+  ],
 });

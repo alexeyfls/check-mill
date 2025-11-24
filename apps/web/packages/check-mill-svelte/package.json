@@ -1,6 +1,6 @@
 {
 	"name": "@check-mill/svelte",
-	"version": "1.0.0",
+	"version": "0.0.1",
 	"type": "module",
 	"scripts": {
 		"package": "svelte-kit sync && svelte-package",

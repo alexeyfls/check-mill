@@ -16,4 +16,3 @@ declare const CheckMillRenderer: $$__sveltets_2_IsomorphicComponent<Record<strin
 }, {}, {}, string>;
 type CheckMillRenderer = InstanceType<typeof CheckMillRenderer>;
 export default CheckMillRenderer;
-//# sourceMappingURL=CheckMillRenderer.svelte.d.ts.map

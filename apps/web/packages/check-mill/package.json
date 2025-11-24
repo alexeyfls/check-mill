@@ -2,14 +2,6 @@
   "name": "@check-mill/core",
   "private": true,
   "version": "0.0.1",
-  "type": "module",
-  "main": "dist/index.cjs.js",
-  "module": "dist/index.es.js",
-  "types": "dist/index.d.ts",
-  "style": "dist/core.css",
-  "files": [
-    "dist"
-  ],
   "scripts": {
     "build": "vite build",
     "watch": "vite build --watch"
@@ -19,5 +11,22 @@
     "typescript": "~5.7.2",
     "vite": "^7.1.0",
     "vite-plugin-dts": "^4.5.4"
-  }
+  },
+  "main": "dist/index.cjs.js",
+  "module": "dist/index.es.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.es.js",
+      "require": "./dist/index.cjs.js"
+    },
+    "./core.css": "./dist/core.css"
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": [
+    "dist/core.css"
+  ]
 }

@@ -1,4 +1,4 @@
-import { getContext, setContext } from 'svelte';
+import { getContext, setContext } from "svelte";
 
 export type ContextKey<T> = {
 	id: symbol;

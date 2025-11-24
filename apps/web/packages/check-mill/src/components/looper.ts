@@ -38,7 +38,7 @@ function resetScrollPosition(appRef: AppRef): void {
   const { contentArea, slideSpacing } = layout;
 
   const moveDistance = -1 * contentArea.height + slideSpacing;
-  moveTo(motion, wrapPosition(motion.current, moveDistance, 0));
+  moveTo(motion, wrapPosition(motion.current, 0, moveDistance));
 }
 
 /**
