@@ -1,132 +1,62 @@
 /**
- * Defines the padding for a container or slide.
+ * Generic size interface to avoid dependency on DOMRect.
  */
+export type Size = {
+  width: number;
+  height: number;
+};
+
 export type Padding = {
   vertical: number;
   horizontal: number;
 };
 
-/**
- * Defines all sizing and spacing parameters for the main layout.
- * All dimension values are in pixels unless otherwise specified.
- */
 export type LayoutConfig = {
-  /**
-   * The size (width and height) of a single checkbox within a slide.
-   */
   checkboxSize: number;
-
-  /**
-   * The spacing between checkboxes within a slide's grid.
-   */
   gridSpacing: number;
-
-  /**
-   * The initial DOMRect of the main viewport element.
-   */
-  viewportRect: DOMRect;
-
-  /**
-   * A multiplier that determines how many off-screen "ghost" slides to render
-   * for a seamless infinite loop effect. E.g., a value of 2 means render
-   * two full viewports of slides on each side.
-   */
-  loopBufferSizeRatio: number;
-
-  /**
-   * The internal padding within the main container element.
-   */
-  containerPadding: Padding;
-
-  /**
-   * The spacing between individual slides.
-   */
   slideSpacing: number;
 
-  /**
-   * The maximum allowed width of a single slide.
-   */
-  slideMaxWidth: number;
-
-  /**
-   * The maximum height of a slide, expressed as a ratio (0.0 to 1.0)
-   * of the viewport's height.
-   */
-  slideMaxHeightAsViewportRatio: number;
-
-  /**
-   * The absolute minimum height of a slide.
-   */
-  slideMinHeightInPx: number;
-
-  /**
-   * The internal padding within a single slide element.
-   */
+  viewportSize: Size;
+  containerPadding: Padding;
   slidePadding: Padding;
+
+  slideMaxWidth: number;
+  slideMinHeight: number;
+  slideMaxHeightRatio: number; // 0.0 to 1.0 (relative to viewport)
+
+  targetDivisor: number;
+  minGridDimension: number;
+  maxGridDimension: number;
+
+  loopBufferSizeRatio: number;
 };
 
-/**
- * Contains the results of all layout calculations based on a LayoutConfig.
- * This object holds the definitive, computed dimensions and counts used for rendering.
- */
 export type ComputedLayout = {
-  /**
-   * The final, calculated dimensions of a single slide.
-   */
-  slide: {
-    width: number;
-    height: number;
-  };
-
-  /**
-   * The calculated grid structure within each slide.
-   */
+  slide: Size;
   grid: {
     rows: number;
     columns: number;
-    cellsPerSlide: number;
   };
-
-  /**
-   * The calculated number of slides required for the infinite loop.
-   */
   slideCount: {
-    inView: number;
+    visible: number;
     buffer: number;
     total: number;
   };
-
-  /**
-   * The final, calculated dimensions of the total scrollable content area.
-   */
-  contentArea: {
-    width: number;
-    height: number;
+  contentArea: Size;
+  pagination: {
+    itemsPerSlide: number;
+    totalItems: number;
+    totalPages: number;
   };
 };
 
-/**
- * A merged type containing both the input configuration and the computed output.
- */
 export type LayoutProperties = LayoutConfig & ComputedLayout;
 
-/**
- * Creates the initial, complete layout properties object from a configuration.
- * @param initialConfig The initial layout configuration.
- * @returns A frozen, read-only object with all layout properties.
- */
 export function createLayout(initialConfig: LayoutConfig): Readonly<LayoutProperties> {
   const metrics = computeLayout(initialConfig);
   return Object.freeze({ ...initialConfig, ...metrics });
 }
 
-/**
- * Takes the current layout properties and a set of updates, and returns a
- * new, re-computed layout properties object.
- * @param currentProps The complete, current layout properties object.
- * @param updates A partial object of LayoutConfig properties to change.
- * @returns A new, frozen, read-only object with all updated layout properties.
- */
 export function updateLayout(
   currentProps: LayoutProperties,
   updates: Partial<LayoutConfig>
@@ -139,75 +69,114 @@ export function updateLayout(
   return Object.freeze({ ...newConfig, ...newMetrics });
 }
 
-/**
- * A pure function that calculates layout metrics based on a configuration.
- * This is a direct translation of the logic from your Layout class.
- * @param config The input configuration object.
- * @returns The computed layout metrics.
- */
 export function computeLayout(config: LayoutConfig): ComputedLayout {
-  const maxPossibleHeight = config.viewportRect.height * config.slideMaxHeightAsViewportRatio;
+  const maxAllowedHeight = config.viewportSize.height * config.slideMaxHeightRatio;
+  const slideHeight = Math.max(config.slideMinHeight, maxAllowedHeight);
+  const verticalPadding = config.slidePadding.vertical * 2;
+  const availableGridHeight = Math.max(0, slideHeight - verticalPadding);
 
-  const clampedSlideHeight = Math.max(config.slideMinHeightInPx, maxPossibleHeight);
+  const containerWidth = config.viewportSize.width - config.containerPadding.horizontal;
+  const slideWidth = Math.min(config.slideMaxWidth, containerWidth);
+  const horizontalPadding = config.slidePadding.horizontal * 2;
+  const availableGridWidth = Math.max(0, slideWidth - horizontalPadding);
 
-  const availableHeightForGrid = clampedSlideHeight - config.slidePadding.vertical * 2;
+  const itemFootprint = config.checkboxSize + config.gridSpacing;
 
-  const gridRows = Math.floor(
-    (availableHeightForGrid + config.gridSpacing) / (config.checkboxSize + config.gridSpacing)
-  );
+  if (itemFootprint <= 0) {
+    throw new Error("Invalid Config: Checkbox size + spacing must be greater than 0");
+  }
 
-  const availableWidthForSlide = config.viewportRect.width - config.containerPadding.horizontal;
+  const physicalMaxRows = Math.floor((availableGridHeight + config.gridSpacing) / itemFootprint);
+  const physicalMaxCols = Math.floor((availableGridWidth + config.gridSpacing) / itemFootprint);
 
-  const slideContentWidth =
-    Math.min(config.slideMaxWidth, availableWidthForSlide) - config.slidePadding.horizontal * 2;
-
-  const gridColumns = Math.floor(
-    (slideContentWidth + config.gridSpacing) / (config.checkboxSize + config.gridSpacing)
-  );
-
-  const cellsPerSlide = gridRows * gridColumns;
+  const { rows, cols } = findOptimalGrid({
+    maxRows: physicalMaxRows,
+    maxCols: physicalMaxCols,
+    minDim: config.minGridDimension,
+    maxDim: config.maxGridDimension,
+    targetDivisor: config.targetDivisor,
+  });
 
   const finalSlideHeight =
-    gridRows * config.checkboxSize +
-    (gridRows - 1) * config.gridSpacing +
-    config.slidePadding.vertical * 2;
-
+    calculateLengthWithGaps(rows, config.checkboxSize, config.gridSpacing) + verticalPadding;
   const finalSlideWidth =
-    gridColumns * config.checkboxSize +
-    (gridColumns - 1) * config.gridSpacing +
-    config.slidePadding.horizontal * 2;
+    calculateLengthWithGaps(cols, config.checkboxSize, config.gridSpacing) + horizontalPadding;
 
-  const slidesInViewCount = Math.ceil(config.viewportRect.height / finalSlideHeight);
+  const safeSlideHeight = Math.max(1, finalSlideHeight);
+  const visibleSlides = Math.ceil(config.viewportSize.height / safeSlideHeight);
+  const bufferSlides = Math.ceil(visibleSlides * config.loopBufferSizeRatio);
+  const totalSlides = visibleSlides + bufferSlides;
 
-  const bufferCount = slidesInViewCount * config.loopBufferSizeRatio;
-
-  const totalSlidesCount = slidesInViewCount + bufferCount;
-
-  const contentWidth = finalSlideWidth;
-
-  const contentHeight =
-    totalSlidesCount * finalSlideHeight +
-    (totalSlidesCount - 1) * config.slideSpacing +
+  const totalContentHeight =
+    calculateLengthWithGaps(totalSlides, finalSlideHeight, config.slideSpacing) +
     config.containerPadding.vertical * 2;
 
   return {
-    slide: {
-      width: finalSlideWidth,
-      height: finalSlideHeight,
-    },
-    grid: {
-      rows: gridRows,
-      columns: gridColumns,
-      cellsPerSlide: cellsPerSlide,
-    },
+    slide: { width: finalSlideWidth, height: finalSlideHeight },
+    grid: { rows, columns: cols },
     slideCount: {
-      inView: slidesInViewCount,
-      buffer: bufferCount,
-      total: totalSlidesCount,
+      visible: visibleSlides,
+      buffer: bufferSlides,
+      total: totalSlides,
     },
     contentArea: {
-      width: contentWidth,
-      height: contentHeight,
+      width: finalSlideWidth,
+      height: totalContentHeight,
+    },
+    pagination: {
+      itemsPerSlide: rows * cols,
+      totalItems: config.targetDivisor,
+      totalPages: config.targetDivisor / (rows * cols),
     },
   };
+}
+
+/**
+ * Calculates the total length of N items with gaps in between.
+ */
+function calculateLengthWithGaps(count: number, itemSize: number, gapSize: number): number {
+  if (count <= 0) return 0;
+  return count * itemSize + Math.max(0, count - 1) * gapSize;
+}
+
+/**
+ * Finds the largest grid (Rows x Cols) that:
+ * 1. Fits within the physical max limits.
+ * 2. Is between minDim and maxDim.
+ * 3. Resulting cell count (Rows * Cols) is a factor of targetDivisor.
+ */
+function findOptimalGrid(params: {
+  maxRows: number;
+  maxCols: number;
+  minDim: number;
+  maxDim: number;
+  targetDivisor: number;
+}): { rows: number; cols: number } {
+  const { maxRows, maxCols, minDim, maxDim, targetDivisor } = params;
+
+  const limitCols = Math.min(maxDim, Math.max(minDim, maxCols));
+  const limitRows = Math.min(maxDim, Math.max(minDim, maxRows));
+
+  const startDim = minDim % 2 === 0 ? minDim : minDim + 1;
+
+  let bestCols = startDim;
+  let bestRows = startDim;
+  let maxValidCells = 0;
+
+  for (let c = startDim; c <= limitCols; c++) {
+    for (let r = startDim; r <= limitRows; r++) {
+      const currentCells = c * r;
+
+      const isDivisorMatch = targetDivisor % currentCells === 0;
+      const isLargestSoFar = currentCells > maxValidCells;
+
+      if (isDivisorMatch && isLargestSoFar) {
+        maxValidCells = currentCells;
+        bestCols = c;
+        bestRows = r;
+      }
+    }
+  }
+
+  return { rows: bestRows, cols: bestCols };
 }

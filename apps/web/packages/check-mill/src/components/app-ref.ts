@@ -1,19 +1,19 @@
 import {
   type BitwiseFlags,
+  type Disposable,
   type ProcessorFunction,
-  type TimeParams,
+  type UpdateParams,
+  type RenderParams,
   createFlagManager,
-  SystemFactory,
-  SystemInstance,
   UintXBitSet,
 } from "../core";
 import { assert } from "../core";
-import { type AxisType, Axis } from "./axis";
+import { type Axis, createAxis } from "./axis";
 import { SlideFactory } from "./dom-factories";
-import { type GestureEvent } from "./gestures";
 import { type LayoutProperties, createLayout } from "./layout";
-import { type MotionType, Motion } from "./scroll-motion";
-import { type SlidesCollectionType, Slides } from "./slides";
+import { LoopPhase, type LoopState } from "./looper";
+import { type MotionType, createMotion } from "./scroll-motion";
+import { type SlidesCollectionType, createSlides } from "./slides";
 
 // prettier-ignore
 export const enum AppDirtyFlags {
@@ -23,8 +23,11 @@ export const enum AppDirtyFlags {
 }
 
 export const enum Phases {
+  // Logic & Simulation (fixed timestamp)
   IO,
   Update,
+
+  // Presentation (variable timestamp)
   Render,
   Cleanup,
 }
@@ -36,23 +39,52 @@ export interface AppRef {
     root: HTMLElement;
     container: HTMLElement;
   };
-  axis: AxisType;
+  axis: Axis;
   board: UintXBitSet;
   dirtyFlags: BitwiseFlags;
   layout: Readonly<LayoutProperties>;
   motion: MotionType;
   slides: SlidesCollectionType;
-  dragEvents: GestureEvent[];
-  wheelEvents: GestureEvent[];
+  loopState: LoopState;
 }
 
-export type AppProcessorFunction = ProcessorFunction<AppRef, TimeParams>;
+/**
+ * Processor for fixed-step logic.
+ */
+export type AppUpdateFunction = ProcessorFunction<AppRef, UpdateParams>;
 
-export type AppSystemInstance = SystemInstance<Phases, AppRef, TimeParams>;
+/**
+ * Processor for variable-step rendering.
+ */
+export type AppRenderFunction = ProcessorFunction<AppRef, RenderParams>;
 
-export type AppSystemFactory = SystemFactory<Phases, AppRef, TimeParams>;
+/**
+ * A strongly-typed pipeline that enforces the correct function signature
+ * for each phase.
+ */
+export type PhasePipeline = {
+  [Phases.IO]: AppUpdateFunction[];
+  [Phases.Update]: AppUpdateFunction[];
+  [Phases.Render]: AppRenderFunction[];
+  [Phases.Cleanup]: AppRenderFunction[];
+};
 
-export type PhasePipeline = Record<Phases, AppProcessorFunction[]>;
+/**
+ * Defines the structure of a System in this application.
+ * We avoid the generic `SystemInstance` here to support the mixed parameter types in `PhasePipeline`.
+ */
+export interface AppSystemInstance {
+  /**
+   * Initializes the system (DOM listeners, etc).
+   * @returns A disposable to clean up the system.
+   */
+  init(): Disposable;
+
+  /**
+   * Returns the logic functions to be injected into the main loop.
+   */
+  readonly logic: Partial<PhasePipeline>;
+}
 
 /**
  * Creates an empty pipeline object, mapping each phase to an empty
@@ -109,28 +141,24 @@ export function mergePipelines(pipelines: PhasePipeline[]): PhasePipeline {
 }
 
 /**
- * Creates a throttled version of a processor function that only invokes the
- * original function at most once per every `delay` milliseconds.
- *
- * This is ideal for expensive, repeated operations within a render loop, such
- * as visibility checks or DOM measurements.
+ * Creates a throttled version of a processor function.
+ * Works for both Update and Render functions as long as params include `t`.
  *
  * @param fn The processor function to throttle.
  * @param delay The throttle duration in milliseconds.
- * @returns A new processor function that wraps the original with throttle logic.
  */
-export function appProcessorThrottled(
-  fn: AppProcessorFunction,
+export function appProcessorThrottled<P extends { t: number }>(
+  fn: ProcessorFunction<AppRef, P>,
   delay: number
-): AppProcessorFunction {
+): ProcessorFunction<AppRef, P> {
   let lastExecutionTime = -Infinity;
 
-  return (appRef, timeParams) => {
-    const currentTime = timeParams.t;
+  return (appRef, params) => {
+    const currentTime = params.t;
 
     if (currentTime - lastExecutionTime >= delay) {
       lastExecutionTime = currentTime;
-      return fn(appRef, timeParams);
+      return fn(appRef, params);
     }
 
     return appRef;
@@ -142,10 +170,15 @@ export function createAppRef(root: HTMLElement, container: HTMLElement): AppRef 
   const window = document.defaultView;
   assert(window, "Window object not available for provided root element");
 
+  const rect = root.getBoundingClientRect();
+
   const layout = createLayout({
     checkboxSize: 24,
     gridSpacing: 8,
-    viewportRect: root.getBoundingClientRect(),
+    viewportSize: {
+      width: rect.width,
+      height: rect.height,
+    },
     loopBufferSizeRatio: 3,
     containerPadding: {
       vertical: 12,
@@ -153,30 +186,39 @@ export function createAppRef(root: HTMLElement, container: HTMLElement): AppRef 
     },
     slideSpacing: 12,
     slideMaxWidth: 1024,
-    slideMaxHeightAsViewportRatio: 0.3,
-    slideMinHeightInPx: 100,
+    slideMaxHeightRatio: 0.3,
+    slideMinHeight: 100,
     slidePadding: {
       vertical: 12,
       horizontal: 12,
     },
+    minGridDimension: 2,
+    maxGridDimension: 128,
+    targetDivisor: 65_535 * 16,
   });
 
-  const slides = Slides(new SlideFactory(document), layout.slideCount.total);
+  const slides = createSlides(new SlideFactory(document), layout.slideCount.total);
+
+  const owner = {
+    window,
+    document,
+    root,
+    container,
+  };
+
+  const loopState = {
+    iteration: 0,
+    phase: LoopPhase.Neutral,
+  };
 
   return {
-    owner: {
-      window,
-      document,
-      root,
-      container,
-    },
-    layout,
-    slides,
-    axis: Axis("y"),
+    axis: createAxis("y"),
     board: UintXBitSet.empty(16, 65_535),
-    motion: Motion(),
     dirtyFlags: createFlagManager(AppDirtyFlags.None),
-    dragEvents: new Array<GestureEvent>(),
-    wheelEvents: new Array<GestureEvent>(),
+    layout,
+    loopState,
+    motion: createMotion(),
+    owner,
+    slides,
   };
 }

@@ -1,34 +1,34 @@
 import {
   type AppRef,
-  type AppProcessorFunction,
-  type AppSystemFactory,
+  type AppRenderFunction,
   type SlidesRendererType,
   type TranslateType,
   type VisibilityTrackerType,
   Phases,
   VisibilityChange,
-  SlidesRenderer,
-  Translate,
   appProcessorThrottled,
   writeVariables,
   createVisibilityTracker,
+  createSlidesRenderer,
+  createTranslationController,
+  AppSystemInstance,
 } from "../components";
 import { type Disposable, DisposableStoreId, createDisposableStore } from "../core";
 
-export const RenderSystem: AppSystemFactory = (appRef: AppRef) => {
+export const RenderSystem = (appRef: AppRef): AppSystemInstance => {
   let renderer: SlidesRendererType;
   let translate: TranslateType;
   let visibilityTracker: VisibilityTrackerType;
 
   const init = (): Disposable => {
-    translate = Translate(appRef.axis);
+    translate = createTranslationController(appRef.axis);
 
     visibilityTracker = createVisibilityTracker(
       appRef.owner.root,
       appRef.slides.map((s) => s.nativeElement)
     );
 
-    renderer = SlidesRenderer(
+    renderer = createSlidesRenderer(
       appRef.owner.document,
       appRef.owner.container,
       appRef.axis,
@@ -44,7 +44,7 @@ export const RenderSystem: AppSystemFactory = (appRef: AppRef) => {
     return () => disposables.flushAll();
   };
 
-  const syncVisibility: AppProcessorFunction = (app: AppRef, _timeParams) => {
+  const syncVisibility: AppRenderFunction = (app: AppRef, _params) => {
     const records = visibilityTracker.takeRecords();
 
     for (const record of records) {
@@ -62,21 +62,20 @@ export const RenderSystem: AppSystemFactory = (appRef: AppRef) => {
     return app;
   };
 
-  const syncOffset: AppProcessorFunction = (app, _timeParams) => {
+  const syncOffset: AppRenderFunction = (app, _params) => {
     renderer.syncOffset(app.slides);
     return app;
   };
 
-  const applyTranslation: AppProcessorFunction = (app, _timeParams) => {
+  const applyTranslation: AppRenderFunction = (app, _params) => {
     translate.to(app.owner.container, app.motion.offset);
     return app;
   };
 
-  const lerp: AppProcessorFunction = (app, timeParams) => {
+  const lerp: AppRenderFunction = (app, params) => {
     const motion = app.motion;
 
-    const interpolated =
-      motion.current * timeParams.alpha + motion.previous * (1.0 - timeParams.alpha);
+    const interpolated = motion.current * params.alpha + motion.previous * (1.0 - params.alpha);
     motion.offset = interpolated;
 
     return app;
@@ -89,7 +88,7 @@ export const RenderSystem: AppSystemFactory = (appRef: AppRef) => {
         lerp,
         syncOffset,
         applyTranslation,
-        appProcessorThrottled(syncVisibility, 160),
+        appProcessorThrottled(syncVisibility, 300),
       ],
     },
   };

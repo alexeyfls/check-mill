@@ -1,4 +1,4 @@
-import { type AxisType } from "./axis";
+import { type Axis } from "./axis";
 
 export type TranslateType = {
   to: (element: HTMLElement, target: number) => void;
@@ -14,7 +14,7 @@ export type TranslateType = {
  * @param axis - Object representing the axis of movement (horizontal or vertical).
  * @returns An object with `to` and `clear` methods for managing element translation.
  */
-export function Translate(axis: AxisType): TranslateType {
+export function createTranslationController(axis: Axis): TranslateType {
   /**
    * The appropriate translate function based on axis orientation.
    */

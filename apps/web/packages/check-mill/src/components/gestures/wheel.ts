@@ -7,7 +7,7 @@ import {
   prevent,
   revert,
 } from "../../core";
-import { type AxisType } from "../axis";
+import { type Axis } from "../axis";
 import { type Component } from "../component";
 import {
   type GestureEvent,
@@ -17,9 +17,12 @@ import {
   gestureEvent,
 } from "./gesture";
 
-export interface WheelType extends Component, Gesture {}
+export interface WheelGesture extends Component, Gesture {}
 
-export function Wheel(root: HTMLElement, axis: AxisType): WheelType {
+const STATIC_LINE_HEIGHT = 16;
+const STATIC_PAGE_HEIGHT = 800;
+
+export function createWheelGesture(root: HTMLElement, axis: Axis): WheelGesture {
   /**
    * Returns a reader for the wheel event stream.
    */
@@ -40,11 +43,30 @@ export function Wheel(root: HTMLElement, axis: AxisType): WheelType {
    * Handles wheel event.
    */
   function onWheel(event: WheelEvent) {
-    const delta = readPoint(event);
-    const gEvent = gestureEvent(GestureType.Wheel, GestureState.Update, revert(delta));
+    const gEvent = gestureEvent(
+      GestureType.Wheel,
+      GestureState.Update,
+      revert(normalizeDelta(event))
+    );
     wheeled.emit(gEvent);
 
     prevent(event, true);
+  }
+
+  function normalizeDelta(event: WheelEvent): number {
+    const rawDelta = readPoint(event);
+
+    switch (event.deltaMode) {
+      case WheelEvent.DOM_DELTA_LINE:
+        return rawDelta * STATIC_LINE_HEIGHT;
+
+      case WheelEvent.DOM_DELTA_PAGE:
+        return rawDelta * STATIC_PAGE_HEIGHT;
+
+      case WheelEvent.DOM_DELTA_PIXEL:
+      default:
+        return rawDelta;
+    }
   }
 
   /**

@@ -19,7 +19,7 @@ export interface MotionType {
  *
  * @returns {MotionType} A MotionType instance .
  */
-export function Motion(): MotionType {
+export function createMotion(): MotionType {
   return {
     current: 0.0,
     previous: 0.0,
@@ -62,7 +62,7 @@ export function moveTo(motion: MotionType, position: number): void {
  * @param motion - The MotionType object to reset.
  */
 export function initial(motion: MotionType): void {
-  const ref = Motion();
+  const ref = createMotion();
 
   for (const field in ref) {
     const typedF = field as keyof MotionType;

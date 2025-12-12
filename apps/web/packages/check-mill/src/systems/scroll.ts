@@ -1,28 +1,88 @@
 import {
-  type AppProcessorFunction,
   type AppRef,
-  type AppSystemFactory,
+  type AppSystemInstance,
+  type AppUpdateFunction,
   type GestureEvent,
-  AppDirtyFlags,
   GestureState,
   Phases,
-  Drag,
-  Wheel,
+  createDragGesture,
+  createWheelGesture,
 } from "../components";
 import { type Disposable, DisposableStoreId, createDisposableStore } from "../core";
 
-export const ScrollSystem: AppSystemFactory = (appRef: AppRef) => {
+const WHEEL_FORCE_MULTIPLIER = 0.05;
+
+/**
+ * Limits the maximum velocity a wheel event can induce.
+ * Critical for preventing "Rocket Scrolling" on high-speed trackpads.
+ */
+const MAX_WHEEL_VELOCITY = 32;
+
+export const ScrollSystem = (appRef: AppRef): AppSystemInstance => {
+  const dragQueue: GestureEvent[] = [];
+  const wheelQueue: GestureEvent[] = [];
+
   const init = (): Disposable => {
-    const drag = Drag(appRef.owner.root, appRef.axis);
-    const wheel = Wheel(appRef.owner.root, appRef.axis);
+    const dragGesture = createDragGesture(appRef.owner.root, appRef.axis);
+    const wheelGesture = createWheelGesture(appRef.owner.root, appRef.axis);
+
+    dragGesture.register((e) => dragQueue.push(e));
+    wheelGesture.register((e) => wheelQueue.push(e));
+
     const disposables = createDisposableStore();
-
-    drag.register((event) => handleDragScroll(appRef, event));
-    wheel.register((event) => handleWheelScroll(appRef, event));
-
-    disposables.push(DisposableStoreId.Static, drag.init(), wheel.init());
+    disposables.push(DisposableStoreId.Static, dragGesture.init(), wheelGesture.init(), () => {
+      dragQueue.length = 0;
+      wheelQueue.length = 0;
+    });
 
     return () => disposables.flushAll();
+  };
+
+  const processWheelScroll: AppUpdateFunction = (app, _params) => {
+    if (wheelQueue.length === 0) return app;
+
+    const motion = app.motion;
+    let accumulatedDelta = 0;
+
+    for (const event of wheelQueue) {
+      accumulatedDelta += event.delta;
+    }
+
+    motion.velocity += accumulatedDelta * WHEEL_FORCE_MULTIPLIER;
+
+    if (motion.velocity > MAX_WHEEL_VELOCITY) {
+      motion.velocity = MAX_WHEEL_VELOCITY;
+    } else if (motion.velocity < -MAX_WHEEL_VELOCITY) {
+      motion.velocity = -MAX_WHEEL_VELOCITY;
+    }
+
+    wheelQueue.length = 0;
+    return app;
+  };
+
+  const processDragScroll: AppUpdateFunction = (app, _params) => {
+    if (dragQueue.length === 0) return app;
+
+    const motion = app.motion;
+
+    for (const event of dragQueue) {
+      switch (event.state) {
+        case GestureState.Initialize:
+          motion.velocity = 0;
+          break;
+
+        case GestureState.Update:
+          motion.current += event.delta;
+          break;
+
+        case GestureState.Finalize:
+          motion.velocity = event.delta;
+          break;
+      }
+    }
+
+    dragQueue.length = 0;
+    return app;
   };
 
   return {
@@ -31,51 +91,4 @@ export const ScrollSystem: AppSystemFactory = (appRef: AppRef) => {
       [Phases.IO]: [processDragScroll, processWheelScroll],
     },
   };
-};
-
-const handleWheelScroll = (app: AppRef, event: GestureEvent): void => {
-  app.wheelEvents.push(event);
-  app.dirtyFlags.set(AppDirtyFlags.Interacted);
-};
-
-const processWheelScroll: AppProcessorFunction = (app, _timeParams) => {
-  const events = app.wheelEvents;
-  const motion = app.motion;
-
-  for (const event of events) {
-    motion.previous = motion.current;
-    motion.velocity = event.delta;
-  }
-
-  events.length = 0;
-  return app;
-};
-
-const handleDragScroll = (app: AppRef, event: GestureEvent): void => {
-  app.dragEvents.push(event);
-  app.dirtyFlags.set(AppDirtyFlags.Interacted);
-};
-
-const processDragScroll: AppProcessorFunction = (app, _timeParams) => {
-  const events = app.dragEvents;
-  const motion = app.motion;
-
-  for (const event of events) {
-    switch (event.state) {
-      case GestureState.Initialize:
-        motion.velocity = 0;
-        break;
-
-      case GestureState.Update:
-        motion.current += event.delta;
-        break;
-
-      case GestureState.Finalize:
-        motion.velocity = event.delta;
-        break;
-    }
-  }
-
-  events.length = 0;
-  return app;
 };

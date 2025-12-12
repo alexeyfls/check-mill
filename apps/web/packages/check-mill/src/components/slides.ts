@@ -1,6 +1,6 @@
 import { type SlideFactory } from "./dom-factories";
 
-export interface SlideType {
+export interface Slide {
   readonly nativeElement: HTMLElement;
   readonly realIndex: number;
   virtualIndex: number;
@@ -8,15 +8,15 @@ export interface SlideType {
   viewportOffset: number;
 }
 
-export type SlidesCollectionType = Readonly<SlideType[]>;
+export type SlidesCollectionType = Readonly<Slide[]>;
 
-export function Slide(
+export function createSlide(
   nativeElement: HTMLElement,
   realIndex: number,
   virtualIndex: number,
   pageIndex: number,
   viewportOffset = 0
-): SlideType {
+): Slide {
   return {
     nativeElement,
     realIndex,
@@ -26,12 +26,12 @@ export function Slide(
   };
 }
 
-export function Slides(slideFactory: SlideFactory, count: number): SlidesCollectionType {
+export function createSlides(slideFactory: SlideFactory, count: number): SlidesCollectionType {
   const slides = new Array(count);
 
   let index = 0;
   for (const nativeElement of slideFactory.batch(count)) {
-    slides[index] = Slide(nativeElement, index, index, 0);
+    slides[index] = createSlide(nativeElement, index, index, 0);
     index += 1;
   }
 

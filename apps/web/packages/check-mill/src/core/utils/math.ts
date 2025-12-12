@@ -13,3 +13,8 @@ export function clamp(n: number, min: number, max: number): number {
 export function between(n: number, min: number, max: number): boolean {
   return n >= min && n <= max;
 }
+
+export function wrap(x: number, min: number, max: number): number {
+  const length = max - min;
+  return ((((x - min) % length) + length) % length) + min;
+}

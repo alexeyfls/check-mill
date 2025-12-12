@@ -1,14 +1,14 @@
 import {
-  type AppProcessorFunction,
   type AppRef,
+  type AppRenderFunction,
   type AppSystemInstance,
-  AppDirtyFlags,
+  type AppUpdateFunction,
   Phases,
-  Viewport,
   createAppRef,
   createPhasePipeline,
   mergePipelines,
   collectSystemLogic,
+  createViewport,
 } from "./components";
 import {
   type Disposable,
@@ -35,8 +35,8 @@ type ApplicationState = {
   readonly disposables: ReturnType<typeof createDisposableStore>;
   renderLoop: RenderLoopType | null;
 
-  readExecutor: AppProcessorFunction | null;
-  writeExecutor: AppProcessorFunction | null;
+  readExecutor: AppUpdateFunction | null;
+  writeExecutor: AppRenderFunction | null;
 };
 
 /**
@@ -87,7 +87,6 @@ function reconfigure(appState: ApplicationState): void {
   appState.appRef = createAppRef(prevAppRef.owner.root, prevAppRef.owner.container);
 
   const prependPipeline = createPhasePipeline();
-  prependPipeline[Phases.Cleanup].push(resetInteractionState);
 
   const systems: AppSystemInstance[] = [
     NetworkSystem(appState.appRef),
@@ -120,7 +119,7 @@ function reconfigure(appState: ApplicationState): void {
  * @param appState - The central application state object.
  */
 function setupStaticListeners(appState: ApplicationState): void {
-  const viewport = Viewport(appState.appRef.owner.root);
+  const viewport = createViewport(appState.appRef.owner.root);
   const throttledReconfigure = throttle(() => reconfigure(appState), 300);
 
   viewport.resized.register(throttledReconfigure);
@@ -139,8 +138,3 @@ function setupStaticListeners(appState: ApplicationState): void {
     event(appState.appRef.owner.document, "visibilitychange", onVisibilityChange)
   );
 }
-
-const resetInteractionState: AppProcessorFunction = (appRef: AppRef): AppRef => {
-  appRef.dirtyFlags.unset(AppDirtyFlags.Interacted);
-  return appRef;
-};

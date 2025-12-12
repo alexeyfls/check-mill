@@ -1,13 +1,13 @@
 export type AxisOptionType = "x" | "y";
 
-export interface AxisType {
+export interface Axis {
   readonly isVertical: boolean;
   readonly scroll: AxisOptionType;
   readonly sign: number;
   direction(n: number): number;
 }
 
-export function Axis(axis: AxisOptionType): AxisType {
+export function createAxis(axis: AxisOptionType): Axis {
   /**
    * True if the axis is vertical, false if horizontal.
    */

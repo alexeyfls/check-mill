@@ -6,7 +6,7 @@ import {
   event,
   prevent,
 } from "../../core";
-import { type AxisType } from "../axis";
+import { type Axis } from "../axis";
 import { type Component } from "../component";
 import {
   type Gesture,
@@ -30,7 +30,7 @@ const LOG_INTERVAL = 170;
  */
 const DRAG_THRESHOLD = 5;
 
-export interface DragType extends Component, Gesture {}
+export interface DragGesture extends Component, Gesture {}
 
 /**
  * Creates a Drag gesture component that handles pointer-based dragging logic.
@@ -39,9 +39,9 @@ export interface DragType extends Component, Gesture {}
  *
  * @param root The HTML element to which the drag listeners will be attached.
  * @param axis The axis ('x' or 'y') along which to measure drag movement.
- * @returns An object conforming to the DragType interface.
+ * @returns An object conforming to the DragGesture interface.
  */
-export function Drag(root: HTMLElement, axis: AxisType): DragType {
+export function createDragGesture(root: HTMLElement, axis: Axis): DragGesture {
   /** First recorded pointer event in the drag interaction. */
   let startEvent: PointerEvent;
 

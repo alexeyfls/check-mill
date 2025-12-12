@@ -1,26 +1,28 @@
-import { type AppProcessorFunction, type AppSystemFactory, Phases, loop } from "../components";
+import {
+  type AppRef,
+  type AppSystemInstance,
+  type AppUpdateFunction,
+  Phases,
+  loop,
+} from "../components";
 import { noop } from "../core";
 
-export const UpdateSystem: AppSystemFactory = () => ({
+export const UpdateSystem = (_appRef: AppRef): AppSystemInstance => ({
   init: () => noop,
   logic: {
     [Phases.Update]: [processInertia, processLoop],
   },
 });
 
-const processLoop: AppProcessorFunction = (appRef) => {
+const processLoop: AppUpdateFunction = (appRef) => {
   loop(appRef);
   return appRef;
 };
 
-export const processInertia: AppProcessorFunction = (app, timeParams) => {
+export const processInertia: AppUpdateFunction = (app, params) => {
   const motion = app.motion;
 
-  const integratedVelocity = applyFriction(
-    motion.velocity,
-    0.75 /* friction factor */,
-    timeParams.dt
-  );
+  const integratedVelocity = applyFriction(motion.velocity, 0.75 /* friction factor */, params.dt);
 
   const displacement = integratedVelocity;
 

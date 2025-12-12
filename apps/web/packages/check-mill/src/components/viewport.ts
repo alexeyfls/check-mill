@@ -15,7 +15,7 @@ export interface ViewportType extends Component {
 /**
  * Viewport component observes size changes of the root element
  */
-export function Viewport(root: HTMLElement): ViewportType {
+export function createViewport(root: HTMLElement): ViewportType {
   /**
    * Latest bounding client rect of the root element.
    */

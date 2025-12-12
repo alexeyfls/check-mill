@@ -6,16 +6,21 @@
   "tasks": {
     "check-mill-watch": {
       "name": "Check Mill Watch",
-      "command": "cd frontend/packages/check-mill && npm run watch",
+      "command": "cd apps/web/packages/check-mill && npm run watch",
       "runAtStart": true
     },
     "check-mill-svelte": {
       "name": "Check Mill Svelte",
-      "command": "cd frontend/packages/check-mill-svelte && npm run dev",
+      "command": "cd apps/web/packages/check-mill-svelte && npm run package",
+      "runAtStart": true
+    },
+    "check-mill-app": {
+      "name": "Check Mill App",
+      "command": "cd apps/web/check-mill-app && npm run dev",
       "runAtStart": true,
       "preview": {
         "port": 5173
       }
-    }
+    },
   }
 }

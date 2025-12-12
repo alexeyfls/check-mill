@@ -1,133 +1,201 @@
 import { assert } from "../core";
 
 /**
- * Parameters passed by the render loop on each frame.
+ * Parameters passed to the update function during the fixed simulation step.
  */
-export type TimeParams = {
-  /** The current time of the frame (e.g., performance.now()). */
+export type UpdateParams = {
+  /**
+   * The current simulation time (ms).
+   */
   t: number;
-  /** The time delta since the last frame. */
+
+  /**
+   * The fixed time step for this update.
+   *
+   */
   dt: number;
-  /** The interpolation factor for rendering between physics steps. */
+};
+
+/**
+ * Parameters passed to the render function during the variable rendering step.
+ */
+export type RenderParams = {
+  /**
+   * The current simulation time (ms).
+   */
+  t: number;
+
+  /**
+   * The fixed time step used in the update phase.
+   */
+  dt: number;
+
+  /**
+   * The interpolation factor (0.0 to 1.0) representing the remaining time
+   * in the accumulator. Used to blend between the previous and current physics state.
+   */
   alpha: number;
 };
 
 /**
- * Represents the interface for a Render Loop that can be started and stopped.
+ * Represents the interface for a Render Loop that can be controlled.
  */
 export interface RenderLoopType {
+  /**
+   * Starts the game loop.
+   */
   start(): void;
+
+  /**
+   * Stops the game loop.
+   */
   stop(): void;
+
+  /**
+   * Checks if the loop is currently running.
+   */
+  isActive(): boolean;
 }
 
 /**
- * Creates a Render Loop system that controls the flow of updates and rendering.
- * The render loop runs updates at a fixed timestep and performs rendering with a variable alpha based on the timestep.
+ * Creates a robust Game Loop that decouples simulation speed from frame rate.
+ * * It uses the "Fix Your Timestep" pattern to ensure deterministic physics updates
+ * while maintaining smooth rendering via interpolation.
  *
- * @param {Window} ownerWindow - The window object associated with the document.
- * @param {(timeParams: TimeParams) => void} update - A function that performs the app update logic.
- * @param {(timeParams: TimeParams) => void} render - A function that renders the app state.
- * @param {number} [fps=60] - The desired frames per second for the render loop (defaults to 60).
- * @returns {RenderLoopType} A RenderLoop instance with start and stop methods to control the loop.
+ * @param ownerWindow - The window object used for requestAnimationFrame.
+ * @param update - Function to perform fixed-step logic (physics, AI, game rules).
+ * @param render - Function to perform variable-step rendering (drawing, DOM updates).
+ * @param fps - The target updates-per-second for the simulation (default: 60).
+ * @returns A RenderLoop instance.
  *
  * @see [Game Loop Pattern](https://gameprogrammingpatterns.com/game-loop.html)
  * @see [Fix Your Timestep](https://gafferongames.com/post/fix_your_timestep/)
  */
 export function RenderLoop(
   ownerWindow: Window,
-  update: (timeParams: TimeParams) => void,
-  render: (timeParams: TimeParams) => void,
+  update: (params: UpdateParams) => void,
+  render: (params: RenderParams) => void,
   fps: number = 60
 ): RenderLoopType {
   assert(fps > 0, `Invalid FPS value: ${fps}.`);
 
   /**
-   * Accumulator to track the time that hasn't been processed yet
+   * The fixed duration of one simulation step in milliseconds.
    */
-  let accumulator = 0;
+  const fixedTimeStep = 1000 / fps;
 
   /**
-   * Stores the animation frame ID for canceling the animation
-   */
-  let animationId: number | null = null;
-
-  /**
-   * Tracks the timestamp of the last frame, used to calculate the elapsed time
-   */
-  let lastTimeStamp: number | null = null;
-
-  /**
-   * Tracks the simulated time
-   */
-  let simulationTime: number = 0;
-
-  /**
-   * Maximum number of updates per frame to avoid runaway processing
+   * The maximum number of update steps allowed per frame.
+   * This prevents the "Spiral of Death" where the simulation tries to catch up
+   * indefinitely if the rendering falls behind.
    */
   const maxUpdatesPerFrame = 5;
 
   /**
-   * Fixed time step for each update (in milliseconds)
+   * The absolute maximum time (in ms) to simulate for a single frame.
+   * If the browser hangs or the tab is backgrounded for a long time, we cap
+   * the delta to this value (1 second) to avoid locking the CPU.
    */
-  const fixedTimeStep = 1000 / fps;
+  const maxFrameTime = 1000;
+
+  /**
+   * Accumulates the elapsed time since the last frame.
+   * This "bucket" of time is consumed by the update loop in fixed chunks.
+   */
+  let accumulator = 0;
+
+  /**
+   * Tracks the total time elapsed in the simulation world.
+   */
+  let simulationTime = 0;
+
+  /**
+   * Tracks the timestamp of the last animation frame to calculate delta time.
+   */
+  let lastTimeStamp: number | null = null;
+
+  /**
+   * Stores the requestAnimationFrame ID so it can be canceled.
+   */
+  let animationId: number | null = null;
+
+  /**
+   * Reusable object for update parameters to avoid Garbage Collection pressure.
+   * We mutate this object instead of creating a new one every frame.
+   */
+  const updateParams: UpdateParams = { t: 0, dt: fixedTimeStep };
+
+  /**
+   * Reusable object for render parameters.
+   */
+  const renderParams: RenderParams = { t: 0, dt: fixedTimeStep, alpha: 0 };
 
   /**
    * Starts the loop by requesting the first animation frame.
    */
   function start(): void {
-    animationId ??= ownerWindow.requestAnimationFrame(tick);
+    if (animationId !== null) return;
+
+    lastTimeStamp = null;
+    accumulator = 0;
+
+    animationId = ownerWindow.requestAnimationFrame(tick);
   }
 
   /**
    * Stops the loop by canceling the ongoing animation frame.
    */
   function stop(): void {
-    ownerWindow.cancelAnimationFrame(animationId ?? 0);
-
-    accumulator = 0;
-    animationId = null;
-    lastTimeStamp = null;
+    if (animationId !== null) {
+      ownerWindow.cancelAnimationFrame(animationId);
+      animationId = null;
+    }
   }
 
   /**
-   * The main loop that runs at a fixed timestep. It performs the update and render logic
-   * based on the accumulated time.
+   * The main heart of the loop.
+   * 1. Calculates time elapsed.
+   * 2. Runs as many fixed update steps as needed to catch up ("eats" the accumulator).
+   * 3. Renders the state with interpolation ("alpha") for the remaining time.
    *
-   * @param {DOMHighResTimeStamp} timeStamp - The current timestamp of the animation frame.
+   * @param timeStamp - The current timestamp provided by requestAnimationFrame.
    */
   function tick(timeStamp: DOMHighResTimeStamp): void {
-    if (!lastTimeStamp) {
+    if (lastTimeStamp === null) {
       lastTimeStamp = timeStamp;
-      update({
-        t: simulationTime,
-        dt: fixedTimeStep,
-        alpha: 0,
-      });
     }
 
-    const timeElapsed = timeStamp - lastTimeStamp;
+    let frameTime = timeStamp - lastTimeStamp;
     lastTimeStamp = timeStamp;
-    accumulator += timeElapsed;
+
+    if (frameTime > maxFrameTime) {
+      frameTime = maxFrameTime;
+    }
+
+    accumulator += frameTime;
 
     let updatesCount = 0;
-    while (accumulator >= fixedTimeStep && updatesCount < maxUpdatesPerFrame) {
-      update({
-        t: simulationTime,
-        dt: fixedTimeStep,
-        alpha: accumulator / fixedTimeStep,
-      });
+    while (accumulator >= fixedTimeStep) {
+      if (updatesCount >= maxUpdatesPerFrame) {
+        accumulator = 0;
+        break;
+      }
 
-      updatesCount += 1;
+      updateParams.t = simulationTime;
+
+      update(updateParams);
+
       simulationTime += fixedTimeStep;
       accumulator -= fixedTimeStep;
+      updatesCount++;
     }
 
     const alpha = accumulator / fixedTimeStep;
-    render({
-      t: simulationTime,
-      dt: fixedTimeStep,
-      alpha,
-    });
+
+    renderParams.t = simulationTime;
+    renderParams.alpha = alpha;
+
+    render(renderParams);
 
     animationId = ownerWindow.requestAnimationFrame(tick);
   }
@@ -135,5 +203,6 @@ export function RenderLoop(
   return {
     start,
     stop,
+    isActive: () => animationId !== null,
   };
 }
