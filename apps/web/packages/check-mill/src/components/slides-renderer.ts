@@ -1,17 +1,24 @@
+import { px, type UintXBitSet } from "../core";
 import { type Axis } from "./axis";
-import { DataAttributes } from "./constants";
+import { Dataset } from "./constants";
 import { CheckboxFactory } from "./dom-factories";
 import { type LayoutProperties } from "./layout";
-import { type MotionType } from "./scroll-motion";
+import { MotionType } from "./scroll-motion";
 import { type SlidesCollectionType, type Slide } from "./slides";
 import { createTranslationController } from "./translate";
 
 export interface SlidesRendererType {
-  appendSlides(slides: SlidesCollectionType): void;
-  fadeIn(slide: Slide, motion: MotionType): void;
-  fadeOut(slide: Slide, motion: MotionType): void;
-  syncOffset(slides: SlidesCollectionType): void;
+  mountContainers(slides: SlidesCollectionType): void;
+  hydrate(slide: Slide, board: UintXBitSet): void;
+  dehydrate(slide: Slide): void;
+  updateState(slide: Slide, board: UintXBitSet): void;
+  syncPosition(slides: SlidesCollectionType, motion: MotionType): void;
 }
+
+type SlideTemplate = {
+  wrapper: HTMLElement;
+  inputs: HTMLInputElement[];
+};
 
 export function createSlidesRenderer(
   ownerDocument: Document,
@@ -19,99 +26,141 @@ export function createSlidesRenderer(
   axis: Axis,
   layout: Readonly<LayoutProperties>
 ): SlidesRendererType {
-  /**
-   * Translation helper for applying transform along the configured axis.
-   */
   const translate = createTranslationController(axis);
+  const templatePool: SlideTemplate[] = [];
+  const activeTemplates = new Map<HTMLElement, SlideTemplate>();
 
-  /**
-   * Prebuilt, reusable row fragments of checkboxes (one fragment per grid row).
-   * We clone these when appending to a slide to avoid rebuilding individual nodes.
-   */
-  const checkboxRowFragments: DocumentFragment[] = [];
-
-  /**
-   * The maximum translation range per slide based on layout metrics.
-   * Used to scale each slide’s `viewportOffset` into pixels.
-   */
+  const { itemsPerSlide } = layout.pagination;
   const slideTranslateRange = layout.contentArea.height - layout.slideSpacing;
+  const stride = axis.isVertical
+    ? layout.slide.height + layout.slideSpacing
+    : layout.slide.width + layout.slideSpacing;
 
-  precomputeCheckboxRowFragments();
+  root.classList.add("_int_root");
 
-  /**
-   * Append the native elements for all slides to the root container.
-   */
-  function appendSlides(slides: SlidesCollectionType): void {
-    root.replaceChildren(...slides.map((slide) => slide.nativeElement));
+  const poolSize = layout.slideCount.visible + 2;
+  for (let i = 0; i < poolSize; i++) {
+    templatePool.push(createSlideTemplate());
   }
 
-  /**
-   * Precompute a row-aligned set of checkbox fragments covering the grid.
-   * Each fragment contains one row of checkboxes positioned on the grid.
-   */
-  function precomputeCheckboxRowFragments(): void {
-    const cellSize = layout.checkboxSize + layout.gridSpacing;
-    const checkboxFactory = new CheckboxFactory(ownerDocument);
+  function mountContainers(slides: SlidesCollectionType): void {
+    const { width: vw, height: vh } = layout.viewportSize;
+    const { width: sw, height: sh } = layout.slide;
+    const centerX = px((vw - sw) / 2);
+    const centerY = px((vh - sh) / 2);
 
-    for (let x = 0, y = 0, row = 0; row < layout.grid.rows; x = 0, y += cellSize, row += 1) {
-      const fragment = ownerDocument.createDocumentFragment();
-      for (let col = 0; col < layout.grid.columns; col += 1, x += cellSize) {
-        const element = checkboxFactory.create(x, y);
-        element.setAttribute(
-          DataAttributes.CHECKBOX_INDEX,
-          (row * layout.grid.columns + col).toString()
-        );
+    const stage = ownerDocument.createDocumentFragment();
 
-        fragment.append(element);
+    for (const { nativeElement, realIndex } of slides) {
+      const staticOffset = px(realIndex * stride + layout.slideSpacing);
+      const style = nativeElement.style;
+
+      if (axis.isVertical) {
+        style.top = staticOffset;
+        style.left = centerX;
+      } else {
+        style.left = staticOffset;
+        style.top = centerY;
       }
 
-      checkboxRowFragments.push(fragment);
+      stage.appendChild(nativeElement);
+    }
+
+    root.replaceChildren(stage);
+  }
+
+  function hydrate(slide: Slide, board: UintXBitSet): void {
+    const { nativeElement, pageIndex } = slide;
+    const container = nativeElement.firstElementChild as HTMLElement;
+
+    if (activeTemplates.has(container)) return;
+
+    const template = templatePool.pop();
+    if (!template) return;
+
+    nativeElement.setAttribute(`data-${Dataset.SLIDE_INDEX}`, pageIndex.toString());
+
+    syncInputs(template.inputs, pageIndex, board);
+
+    container.appendChild(template.wrapper);
+    activeTemplates.set(container, template);
+  }
+
+  function dehydrate(slide: Slide): void {
+    const container = slide.nativeElement.firstElementChild as HTMLElement;
+    const template = activeTemplates.get(container);
+
+    if (!template) return;
+
+    slide.nativeElement.removeAttribute(`data-${Dataset.SLIDE_INDEX}`);
+
+    container.removeChild(template.wrapper);
+    templatePool.push(template);
+    activeTemplates.delete(container);
+  }
+
+  function updateState(slide: Slide, board: UintXBitSet): void {
+    const container = slide.nativeElement.firstElementChild as HTMLElement;
+    const template = activeTemplates.get(container);
+
+    if (template) {
+      syncInputs(template.inputs, slide.pageIndex, board);
     }
   }
 
-  /**
-   * Animate a slide's entrance by appending one row fragment per frame.
-   * If an animation is already running for this slide, it is cancelled and
-   * the container is cleared before starting the new sequence.
-   */
-  function fadeIn(slide: Slide): void {
-    const { nativeElement } = slide;
-    const fragments = checkboxRowFragments.length;
-    const container = nativeElement.firstElementChild as HTMLElement;
+  function syncInputs(inputs: HTMLInputElement[], pageIndex: number, board: UintXBitSet): void {
+    const offset = pageIndex * itemsPerSlide;
+    const len = inputs.length;
 
-    const clones: Node[] = [];
-    for (let i = 0; i < fragments; i++) {
-      clones.push(checkboxRowFragments[i].cloneNode(true));
+    for (let i = 0; i < len; i++) {
+      const val = board.has(offset + i);
+
+      if (inputs[i].checked !== val) {
+        inputs[i].checked = val;
+      }
     }
-
-    nativeElement.setAttribute(DataAttributes.SLIDE_INDEX, slide.pageIndex.toString());
-
-    container.append(...clones);
   }
 
-  /**
-   * Stop any in-flight animation for the slide and clear its container.
-   * Uses a single-frame task to perform the DOM cleanup via the sequencer
-   * (keeps all DOM mutations serialized through the same pipeline).
-   */
-  function fadeOut(slide: Slide, _motion: MotionType): void {
-    const { nativeElement } = slide;
-    const container = nativeElement.firstElementChild as HTMLElement;
-
-    container.replaceChildren();
-  }
-
-  /**
-   * Apply translation to each slide based on its viewport offset.
-   * The offset is scaled by the precomputed `slideTranslateRange`.
-   */
-  function syncOffset(slides: SlidesCollectionType): void {
+  function syncPosition(slides: SlidesCollectionType, motion: MotionType): void {
     const range = slideTranslateRange;
-    for (let i = 0; i < slides.length; i++) {
+    const mOffset = motion.offset;
+    const count = slides.length;
+
+    for (let i = 0; i < count; i++) {
       const slide = slides[i];
-      translate.to(slide.nativeElement, slide.viewportOffset * range);
+      translate.to(slide.nativeElement, slide.viewportOffset * range + mOffset);
     }
   }
 
-  return { appendSlides, fadeIn, fadeOut, syncOffset };
+  function createSlideTemplate(): SlideTemplate {
+    const wrapper = ownerDocument.createElement("div");
+    wrapper.style.display = "contents";
+
+    const inputs: HTMLInputElement[] = [];
+    const factory = new CheckboxFactory(ownerDocument);
+    const { rows, columns } = layout.grid;
+    const cellSize = layout.checkboxSize + layout.gridSpacing;
+
+    for (let row = 0; row < rows; row++) {
+      const rowOffset = row * columns;
+      const y = row * cellSize;
+
+      for (let col = 0; col < columns; col++) {
+        const x = col * cellSize;
+        const element = factory.create(x, y);
+
+        const input = (
+          element.tagName === "INPUT" ? element : element.querySelector("input")
+        ) as HTMLInputElement;
+
+        input.setAttribute(`data-${Dataset.CHECKBOX_INDEX}`, (rowOffset + col).toString());
+        inputs.push(input);
+        wrapper.appendChild(element);
+      }
+    }
+
+    return { wrapper, inputs };
+  }
+
+  return { mountContainers, hydrate, dehydrate, updateState, syncPosition };
 }

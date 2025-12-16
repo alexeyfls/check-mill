@@ -12,24 +12,11 @@ export interface ViewportType extends Component {
   measure(): DOMRect;
 }
 
-/**
- * Viewport component observes size changes of the root element
- */
 export function createViewport(root: HTMLElement): ViewportType {
-  /**
-   * Latest bounding client rect of the root element.
-   */
   let memoRect: DOMRect = root.getBoundingClientRect();
 
-  /**
-   * Returns a reader for the resize event stream.
-   */
   const resized = new TypedEvent<DOMRect>();
 
-  /**
-   * @internal
-   * Component lifecycle method.
-   */
   function init(): Disposable {
     const resizeObserver = new ResizeObserver(onResize);
     resizeObserver.observe(root);

@@ -1,28 +1,23 @@
+import type { AppRef, AppSystemInstance, GestureEvent } from "../components";
 import {
-  type AppRef,
-  type AppSystemInstance,
-  type AppUpdateFunction,
-  type GestureEvent,
+  AppDirtyFlags,
   GestureState,
   Phases,
   createDragGesture,
   createWheelGesture,
 } from "../components";
-import { type Disposable, DisposableStoreId, createDisposableStore } from "../core";
+import type { Disposable } from "../core";
+import { DisposableStoreId, createDisposableStore, UpdateParams } from "../core";
 
 const WHEEL_FORCE_MULTIPLIER = 0.05;
 
-/**
- * Limits the maximum velocity a wheel event can induce.
- * Critical for preventing "Rocket Scrolling" on high-speed trackpads.
- */
 const MAX_WHEEL_VELOCITY = 32;
 
-export const ScrollSystem = (appRef: AppRef): AppSystemInstance => {
+export function ScrollSystem(appRef: AppRef): AppSystemInstance {
   const dragQueue: GestureEvent[] = [];
   const wheelQueue: GestureEvent[] = [];
 
-  const init = (): Disposable => {
+  function init(): Disposable {
     const dragGesture = createDragGesture(appRef.owner.root, appRef.axis);
     const wheelGesture = createWheelGesture(appRef.owner.root, appRef.axis);
 
@@ -36,9 +31,9 @@ export const ScrollSystem = (appRef: AppRef): AppSystemInstance => {
     });
 
     return () => disposables.flushAll();
-  };
+  }
 
-  const processWheelScroll: AppUpdateFunction = (app, _params) => {
+  function processWheelScroll(app: AppRef, _params: UpdateParams): AppRef {
     if (wheelQueue.length === 0) return app;
 
     const motion = app.motion;
@@ -58,9 +53,9 @@ export const ScrollSystem = (appRef: AppRef): AppSystemInstance => {
 
     wheelQueue.length = 0;
     return app;
-  };
+  }
 
-  const processDragScroll: AppUpdateFunction = (app, _params) => {
+  function processDragScroll(app: AppRef, _params: UpdateParams): AppRef {
     if (dragQueue.length === 0) return app;
 
     const motion = app.motion;
@@ -69,21 +64,25 @@ export const ScrollSystem = (appRef: AppRef): AppSystemInstance => {
       switch (event.state) {
         case GestureState.Initialize:
           motion.velocity = 0;
+          motion.previous = motion.current;
+          app.dirtyFlags.set(AppDirtyFlags.GestureRunning);
           break;
 
         case GestureState.Update:
+          motion.previous = motion.current;
           motion.current += event.delta;
           break;
 
         case GestureState.Finalize:
           motion.velocity = event.delta;
+          app.dirtyFlags.unset(AppDirtyFlags.GestureRunning);
           break;
       }
     }
 
     dragQueue.length = 0;
     return app;
-  };
+  }
 
   return {
     init,
@@ -91,4 +90,4 @@ export const ScrollSystem = (appRef: AppRef): AppSystemInstance => {
       [Phases.IO]: [processDragScroll, processWheelScroll],
     },
   };
-};
+}

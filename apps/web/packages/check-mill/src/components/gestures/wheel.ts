@@ -17,21 +17,15 @@ import {
   gestureEvent,
 } from "./gesture";
 
-export interface WheelGesture extends Component, Gesture {}
-
 const STATIC_LINE_HEIGHT = 16;
+
 const STATIC_PAGE_HEIGHT = 800;
 
+export interface WheelGesture extends Component, Gesture {}
+
 export function createWheelGesture(root: HTMLElement, axis: Axis): WheelGesture {
-  /**
-   * Returns a reader for the wheel event stream.
-   */
   const wheeled = new TypedEvent<GestureEvent>();
 
-  /**
-   * @internal
-   * Component lifecycle method.
-   */
   function init(): Disposable {
     const disposables = createDisposableStore();
     disposables.push(DisposableStoreId.Static, wheeled.clear, event(root, "wheel", onWheel));
@@ -39,9 +33,6 @@ export function createWheelGesture(root: HTMLElement, axis: Axis): WheelGesture 
     return () => disposables.flushAll();
   }
 
-  /**
-   * Handles wheel event.
-   */
   function onWheel(event: WheelEvent) {
     const gEvent = gestureEvent(
       GestureType.Wheel,
@@ -69,9 +60,6 @@ export function createWheelGesture(root: HTMLElement, axis: Axis): WheelGesture 
     }
   }
 
-  /**
-   * Extracts the primary coordinate value (X or Y) from a wheel event.
-   */
   function readPoint(event: WheelEvent): number {
     const property: keyof WheelEvent = `delta${axis.isVertical ? "Y" : "X"}`;
     return event[property];

@@ -227,12 +227,9 @@ export class UintXBitSet {
    * @returns An iterable iterator that yields a boolean for each bit in the page.
    */
   public *getPageIterator(pageOffset: number, pageLength: number): IterableIterator<boolean> {
-    // Calculate the end of the iteration, ensuring it doesn't exceed the total bits.
     const endBit = Math.min(pageOffset + pageLength, this.totalBits);
 
-    // Iterate from the starting offset to the calculated end.
     for (let i = pageOffset; i < endBit; i++) {
-      // Yield true if the bit is set, false otherwise.
       yield this.has(i);
     }
   }

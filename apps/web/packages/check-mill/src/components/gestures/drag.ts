@@ -16,54 +16,32 @@ import {
   gestureEvent,
 } from "./gesture";
 
-/**
- * If the user pauses their drag for more than this duration (in ms), the
- * "flick" calculation resets. This prevents a slow drag from being
- * misinterpreted as a high-velocity flick at the end.
- */
-const LOG_INTERVAL = 170;
-
-/**
- * The minimum distance (in px) the pointer must move before a "drag" is
- * officially considered to have started. This helps distinguish a drag
- * from an accidental click.
- */
 const DRAG_THRESHOLD = 5;
+
+const HISTORY_MAX_AGE = 150;
+
+interface MoveSample {
+  time: number;
+  coord: number;
+}
 
 export interface DragGesture extends Component, Gesture {}
 
-/**
- * Creates a Drag gesture component that handles pointer-based dragging logic.
- * It tracks pointer events, manages browser default actions, calculates velocity
- * for flicks, and emits a clean stream of gesture events.
- *
- * @param root The HTML element to which the drag listeners will be attached.
- * @param axis The axis ('x' or 'y') along which to measure drag movement.
- * @returns An object conforming to the DragGesture interface.
- */
 export function createDragGesture(root: HTMLElement, axis: Axis): DragGesture {
-  /** First recorded pointer event in the drag interaction. */
   let startEvent: PointerEvent;
 
-  /** Most recent pointer event. */
   let lastEvent: PointerEvent;
 
-  /** Prevents click events after drag, to avoid accidental activation. */
   let preventClick: boolean = false;
 
-  /** The document that owns the root element, used for global event listeners. */
   const ownerDocument = root.ownerDocument;
 
-  /** Disposable store for managing cleanup functions. */
   const disposables = createDisposableStore();
 
-  /** Returns a reader for the drag event stream. */
   const dragged = new TypedEvent<GestureEvent>();
 
-  /**
-   * @internal
-   * Component lifecycle method.
-   */
+  let moveHistory: MoveSample[] = [];
+
   function init(): Disposable {
     disposables.push(
       DisposableStoreId.Static,
@@ -75,16 +53,13 @@ export function createDragGesture(root: HTMLElement, axis: Axis): DragGesture {
     return () => disposables.flushAll();
   }
 
-  /**
-   * Handles pointer down event.
-   */
   function onPointerDown(event: PointerEvent): void {
     prevent(event, true);
 
     lastEvent = event;
     startEvent = event;
     preventClick = false;
-    const gEvent = gestureEvent(GestureType.Drag, GestureState.Initialize, 0 /* delta */);
+    const gEvent = gestureEvent(GestureType.Drag, GestureState.Initialize, 0);
 
     ownerDocument.body.classList.add("is-dragging");
     (event.target as HTMLElement).setPointerCapture(event.pointerId);
@@ -93,55 +68,46 @@ export function createDragGesture(root: HTMLElement, axis: Axis): DragGesture {
     addDragEvents();
   }
 
-  /**
-   * Handles pointer move event.
-   */
   function onPointerMove(event: PointerEvent): void {
     prevent(event, true);
 
-    const diff = diffCoord(event);
-    const expired = diffTime(event) > LOG_INTERVAL;
-    const gEvent = gestureEvent(GestureType.Drag, GestureState.Update, axis.direction(diff));
+    const currentCoord = readPoint(event);
+    const currentTime = readTime(event);
+    const diff = currentCoord - readPoint(lastEvent);
 
-    if (diff > DRAG_THRESHOLD) {
+    moveHistory.push({ time: currentTime, coord: currentCoord });
+
+    const horizon = currentTime - HISTORY_MAX_AGE;
+    while (moveHistory.length > 0 && moveHistory[0].time < horizon) {
+      moveHistory.shift();
+    }
+
+    if (Math.abs(currentCoord - readPoint(startEvent)) > DRAG_THRESHOLD) {
       preventClick = true;
     }
 
     lastEvent = event;
-    if (expired) {
-      startEvent = event;
-    }
-
+    const gEvent = gestureEvent(GestureType.Drag, GestureState.Update, axis.direction(diff));
     dragged.emit(gEvent);
   }
 
-  /**
-   * Handles pointer up event.
-   */
   function onPointerUp(event: PointerEvent): void {
-    const acceleration = computeAcceleration(event);
-    const gEvent = gestureEvent(GestureType.Drag, GestureState.Finalize, 10 * acceleration);
+    const velocity = computeSampledVelocity(event);
+    const gEvent = gestureEvent(GestureType.Drag, GestureState.Finalize, 10 * velocity);
 
-    ownerDocument.body.classList.remove("is-dragging");
     (event.target as HTMLElement).releasePointerCapture(event.pointerId);
 
     dragged.emit(gEvent);
+    moveHistory = [];
     disposables.flush(DisposableStoreId.Temporal);
   }
 
-  /**
-   * Prevents click events immediately after a drag interaction.
-   * This avoids accidental activation of buttons or links.
-   */
   function onMouseClick(event: MouseEvent): void {
     if (preventClick) {
       prevent(event, true);
     }
   }
 
-  /**
-   * Adds temporary, document-level listeners for an active drag.
-   */
   function addDragEvents(): void {
     disposables.push(
       DisposableStoreId.Temporal,
@@ -153,48 +119,34 @@ export function createDragGesture(root: HTMLElement, axis: Axis): DragGesture {
     );
   }
 
-  /**
-   * Calculates the final velocity (acceleration) for a flick gesture.
-   */
-  function computeAcceleration(event: PointerEvent): number {
-    if (!startEvent || !lastEvent) {
-      return 0;
-    }
+  function computeSampledVelocity(event: PointerEvent): number {
+    if (moveHistory.length < 2) return 0;
 
-    const diffDrag = readPoint(lastEvent) - readPoint(startEvent);
-    const diffTime = readTime(event) - readTime(startEvent);
-    const expired = readTime(event) - readTime(startEvent) > LOG_INTERVAL;
-    const acceleration = diffDrag / diffTime;
-    const isFlick = diffTime && !expired && Math.abs(acceleration) > 0.01;
+    const now = readTime(event);
+    const horizon = now - HISTORY_MAX_AGE;
 
-    return isFlick ? acceleration : 0;
+    const validSamples = moveHistory.filter((s) => s.time > horizon);
+
+    if (validSamples.length < 2) return 0;
+
+    const first = validSamples[0];
+    const last = validSamples[validSamples.length - 1];
+
+    const deltaDist = last.coord - first.coord;
+    const deltaTime = last.time - first.time;
+
+    if (deltaTime === 0) return 0;
+
+    const velocity = deltaDist / deltaTime;
+
+    return Math.abs(velocity) > 0.1 ? velocity : 0;
   }
 
-  /**
-   * Calculates difference between current pointer and the last recorded position.
-   */
-  function diffCoord(event: PointerEvent): number {
-    return readPoint(event) - readPoint(lastEvent);
-  }
-
-  /**
-   * Calculates time delta from the original pointer down to now.
-   */
-  function diffTime(event: PointerEvent): number {
-    return readTime(event) - readTime(startEvent);
-  }
-
-  /**
-   * Extracts the primary coordinate value (X or Y) from a pointer event.
-   */
   function readPoint(event: PointerEvent): number {
     const property: keyof Touch = `client${axis.isVertical ? "Y" : "X"}`;
     return event[property];
   }
 
-  /**
-   * Extracts the event timestamp.
-   */
   function readTime(event: Event): number {
     return event.timeStamp;
   }

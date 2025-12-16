@@ -1,19 +1,22 @@
-import {
-  type BitwiseFlags,
-  type Disposable,
-  type ProcessorFunction,
-  type UpdateParams,
-  type RenderParams,
-  createFlagManager,
-  UintXBitSet,
+import type {
+  BitwiseFlags,
+  Disposable,
+  ProcessorFunction,
+  UpdateParams,
+  RenderParams,
 } from "../core";
-import { assert } from "../core";
-import { type Axis, createAxis } from "./axis";
+import { assert, createFlagManager, UintXBitSet } from "../core";
+import type { Axis } from "./axis";
+import { createAxis } from "./axis";
 import { SlideFactory } from "./dom-factories";
-import { type LayoutProperties, createLayout } from "./layout";
-import { LoopPhase, type LoopState } from "./looper";
-import { type MotionType, createMotion } from "./scroll-motion";
-import { type SlidesCollectionType, createSlides } from "./slides";
+import type { LayoutProperties } from "./layout";
+import { createLayout } from "./layout";
+import type { LoopState } from "./looper";
+import { LoopPhase } from "./looper";
+import type { MotionType } from "./scroll-motion";
+import { createMotion } from "./scroll-motion";
+import type { SlidesCollectionType } from "./slides";
+import { createSlides } from "./slides";
 
 // prettier-ignore
 export const enum AppDirtyFlags {
@@ -23,11 +26,8 @@ export const enum AppDirtyFlags {
 }
 
 export const enum Phases {
-  // Logic & Simulation (fixed timestamp)
   IO,
   Update,
-
-  // Presentation (variable timestamp)
   Render,
   Cleanup,
 }
@@ -37,7 +37,6 @@ export interface AppRef {
     window: Window;
     document: Document;
     root: HTMLElement;
-    container: HTMLElement;
   };
   axis: Axis;
   board: UintXBitSet;
@@ -48,20 +47,10 @@ export interface AppRef {
   loopState: LoopState;
 }
 
-/**
- * Processor for fixed-step logic.
- */
 export type AppUpdateFunction = ProcessorFunction<AppRef, UpdateParams>;
 
-/**
- * Processor for variable-step rendering.
- */
 export type AppRenderFunction = ProcessorFunction<AppRef, RenderParams>;
 
-/**
- * A strongly-typed pipeline that enforces the correct function signature
- * for each phase.
- */
 export type PhasePipeline = {
   [Phases.IO]: AppUpdateFunction[];
   [Phases.Update]: AppUpdateFunction[];
@@ -69,29 +58,11 @@ export type PhasePipeline = {
   [Phases.Cleanup]: AppRenderFunction[];
 };
 
-/**
- * Defines the structure of a System in this application.
- * We avoid the generic `SystemInstance` here to support the mixed parameter types in `PhasePipeline`.
- */
 export interface AppSystemInstance {
-  /**
-   * Initializes the system (DOM listeners, etc).
-   * @returns A disposable to clean up the system.
-   */
   init(): Disposable;
-
-  /**
-   * Returns the logic functions to be injected into the main loop.
-   */
   readonly logic: Partial<PhasePipeline>;
 }
 
-/**
- * Creates an empty pipeline object, mapping each phase to an empty
- * function array.
- *
- * @returns A new PhasePipeline.
- */
 export function createPhasePipeline(): PhasePipeline {
   return {
     [Phases.IO]: [],
@@ -101,13 +72,6 @@ export function createPhasePipeline(): PhasePipeline {
   };
 }
 
-/**
- * Collects and merges processor functions from multiple systems into a
- * single record organized by phase.
- *
- * @param systems An array of AppSystemInstance objects.
- * @returns A new PhasePipeline.
- */
 export function collectSystemLogic(systems: AppSystemInstance[]): PhasePipeline {
   const collectedLogic = createPhasePipeline();
 
@@ -121,12 +85,6 @@ export function collectSystemLogic(systems: AppSystemInstance[]): PhasePipeline 
   return collectedLogic;
 }
 
-/**
- * Merges multiple phase pipelines into a single pipeline.
- *
- * @param pipelines An array of PhasePipeline objects.
- * @returns A single, combined PhasePipeline.
- */
 export function mergePipelines(pipelines: PhasePipeline[]): PhasePipeline {
   const merged = createPhasePipeline();
 
@@ -140,13 +98,6 @@ export function mergePipelines(pipelines: PhasePipeline[]): PhasePipeline {
   return merged;
 }
 
-/**
- * Creates a throttled version of a processor function.
- * Works for both Update and Render functions as long as params include `t`.
- *
- * @param fn The processor function to throttle.
- * @param delay The throttle duration in milliseconds.
- */
 export function appProcessorThrottled<P extends { t: number }>(
   fn: ProcessorFunction<AppRef, P>,
   delay: number
@@ -165,7 +116,7 @@ export function appProcessorThrottled<P extends { t: number }>(
   };
 }
 
-export function createAppRef(root: HTMLElement, container: HTMLElement): AppRef {
+export function createAppRef(root: HTMLElement): AppRef {
   const document = root.ownerDocument;
   const window = document.defaultView;
   assert(window, "Window object not available for provided root element");
@@ -173,7 +124,7 @@ export function createAppRef(root: HTMLElement, container: HTMLElement): AppRef 
   const rect = root.getBoundingClientRect();
 
   const layout = createLayout({
-    checkboxSize: 24,
+    checkboxSize: 32,
     gridSpacing: 8,
     viewportSize: {
       width: rect.width,
@@ -184,9 +135,9 @@ export function createAppRef(root: HTMLElement, container: HTMLElement): AppRef 
       vertical: 12,
       horizontal: 12,
     },
-    slideSpacing: 12,
+    slideSpacing: 8,
     slideMaxWidth: 1024,
-    slideMaxHeightRatio: 0.3,
+    slideMaxHeightRatio: 0.25,
     slideMinHeight: 100,
     slidePadding: {
       vertical: 12,
@@ -203,7 +154,6 @@ export function createAppRef(root: HTMLElement, container: HTMLElement): AppRef 
     window,
     document,
     root,
-    container,
   };
 
   const loopState = {

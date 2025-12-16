@@ -1,6 +1,3 @@
-/**
- * Generic size interface to avoid dependency on DOMRect.
- */
 export type Size = {
   width: number;
   height: number;
@@ -139,12 +136,6 @@ function calculateLengthWithGaps(count: number, itemSize: number, gapSize: numbe
   return count * itemSize + Math.max(0, count - 1) * gapSize;
 }
 
-/**
- * Finds the largest grid (Rows x Cols) that:
- * 1. Fits within the physical max limits.
- * 2. Is between minDim and maxDim.
- * 3. Resulting cell count (Rows * Cols) is a factor of targetDivisor.
- */
 function findOptimalGrid(params: {
   maxRows: number;
   maxCols: number;

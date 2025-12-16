@@ -1,10 +1,7 @@
 import { wrap } from "../core";
-import { type AppRef } from "./app-ref";
+import type { AppRef } from "./app-ref";
 import { moveTo } from "./scroll-motion";
 
-/**
- * Represents the virtual shift direction of the loop.
- */
 export enum LoopPhase {
   Neutral,
   ShiftedUp,
@@ -12,33 +9,15 @@ export enum LoopPhase {
 }
 
 export interface LoopState {
-  /**
-   * The number of full cycles the scroll has wrapped around.
-   */
   iteration: number;
-
-  /**
-   * The last calculated shift phase to prevent redundant updates.
-   */
   phase: LoopPhase;
 }
 
-/**
- * Main loop entry point.
- *
- * @param appRef - The complete application state.
- */
 export function loop(appRef: AppRef): void {
   const didWrap = maintainScrollBounds(appRef);
   updateVirtualConfiguration(appRef, didWrap);
 }
 
-/**
- * Checks if the scroll position has exceeded boundaries and wraps it.
- * Updates the `loopIteration` count if a wrap occurs.
- *
- * @returns `true` if a physical wrap (jump) occurred this frame.
- */
 function maintainScrollBounds(appRef: AppRef): boolean {
   const { motion, layout, loopState } = appRef;
   const { contentArea, slideSpacing } = layout;
@@ -64,10 +43,6 @@ function maintainScrollBounds(appRef: AppRef): boolean {
   return true;
 }
 
-/**
- * Updates the virtual identity (index, offset, page) of slides.
- * Optimized to only run when the phase changes or a wrap occurs.
- */
 function updateVirtualConfiguration(appRef: AppRef, forceUpdate: boolean): void {
   const { loopState } = appRef;
   const currentPhase = calculateLoopPhase(appRef);
@@ -80,9 +55,6 @@ function updateVirtualConfiguration(appRef: AppRef, forceUpdate: boolean): void 
   syncSlidesState(appRef, currentPhase);
 }
 
-/**
- * Determines the current virtual shift phase based on scroll position.
- */
 function calculateLoopPhase(appRef: AppRef): LoopPhase {
   const { layout, motion } = appRef;
 
@@ -91,9 +63,6 @@ function calculateLoopPhase(appRef: AppRef): LoopPhase {
   return Math.abs(motion.current) > midPoint ? LoopPhase.ShiftedDown : LoopPhase.ShiftedUp;
 }
 
-/**
- * The core logic that updates every slide's virtual properties in one pass.
- */
 function syncSlidesState(appRef: AppRef, phase: LoopPhase): void {
   const { slides, layout, loopState } = appRef;
   const { visible, total } = layout.slideCount;

@@ -4,3 +4,7 @@ import type { OneOrMany } from "./types";
 export function px(values: OneOrMany<number>): string {
   return toArray(values).reduce((acc, cur) => acc + ` ${cur}px`, "");
 }
+
+export function readVar(variable: string, alternative?: string | number): string {
+  return `var(${variable}, ${alternative})`;
+}

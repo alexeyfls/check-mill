@@ -1,28 +1,28 @@
+import type {
+  AppRef,
+  AppSystemInstance,
+  SlidesRendererType,
+  VisibilityTrackerType,
+} from "../components";
 import {
-  type AppRef,
-  type AppRenderFunction,
-  type SlidesRendererType,
-  type TranslateType,
-  type VisibilityTrackerType,
   Phases,
   VisibilityChange,
   appProcessorThrottled,
   writeVariables,
   createVisibilityTracker,
   createSlidesRenderer,
-  createTranslationController,
-  AppSystemInstance,
+  AppDirtyFlags,
 } from "../components";
-import { type Disposable, DisposableStoreId, createDisposableStore } from "../core";
+import type { Disposable, RenderParams } from "../core";
+import { DisposableStoreId, createDisposableStore } from "../core";
 
-export const RenderSystem = (appRef: AppRef): AppSystemInstance => {
+export function RenderSystem(appRef: AppRef): AppSystemInstance {
   let renderer: SlidesRendererType;
-  let translate: TranslateType;
   let visibilityTracker: VisibilityTrackerType;
 
-  const init = (): Disposable => {
-    translate = createTranslationController(appRef.axis);
+  const syncVisibilityThrottled = appProcessorThrottled(syncVisibility, 300);
 
+  function init(): Disposable {
     visibilityTracker = createVisibilityTracker(
       appRef.owner.root,
       appRef.slides.map((s) => s.nativeElement)
@@ -30,11 +30,11 @@ export const RenderSystem = (appRef: AppRef): AppSystemInstance => {
 
     renderer = createSlidesRenderer(
       appRef.owner.document,
-      appRef.owner.container,
+      appRef.owner.root,
       appRef.axis,
       appRef.layout
     );
-    renderer.appendSlides(appRef.slides);
+    renderer.mountContainers(appRef.slides);
 
     writeVariables(appRef.owner.root, appRef.layout);
 
@@ -42,54 +42,58 @@ export const RenderSystem = (appRef: AppRef): AppSystemInstance => {
     disposables.push(DisposableStoreId.Static, visibilityTracker.init());
 
     return () => disposables.flushAll();
-  };
+  }
 
-  const syncVisibility: AppRenderFunction = (app: AppRef, _params) => {
+  function syncVisibility(app: AppRef, _params: RenderParams): AppRef {
     const records = visibilityTracker.takeRecords();
 
     for (const record of records) {
       switch (record.change) {
         case VisibilityChange.Exited:
-          renderer.fadeOut(app.slides[record.index], app.motion);
+          renderer.dehydrate(app.slides[record.index]);
           break;
 
         case VisibilityChange.Entered:
-          renderer.fadeIn(app.slides[record.index], app.motion);
+          renderer.hydrate(app.slides[record.index], app.board);
           break;
       }
     }
 
     return app;
-  };
+  }
 
-  const syncOffset: AppRenderFunction = (app, _params) => {
-    renderer.syncOffset(app.slides);
+  function syncPosition(app: AppRef, _params: RenderParams): AppRef {
+    renderer.syncPosition(app.slides, app.motion);
     return app;
-  };
+  }
 
-  const applyTranslation: AppRenderFunction = (app, _params) => {
-    translate.to(app.owner.container, app.motion.offset);
-    return app;
-  };
-
-  const lerp: AppRenderFunction = (app, params) => {
+  function lerp(app: AppRef, params: RenderParams): AppRef {
     const motion = app.motion;
 
     const interpolated = motion.current * params.alpha + motion.previous * (1.0 - params.alpha);
     motion.offset = interpolated;
 
     return app;
-  };
+  }
+
+  function processStyles(app: AppRef, _params: RenderParams): AppRef {
+    const classList = app.owner.root.classList;
+    const isGestureRunning = app.dirtyFlags.is(AppDirtyFlags.GestureRunning);
+    const containsClass = classList.contains("is-scrolling");
+
+    if (isGestureRunning) {
+      !containsClass && classList.add("is-scrolling");
+    } else {
+      containsClass && classList.remove("is-scrolling");
+    }
+
+    return app;
+  }
 
   return {
     init,
     logic: {
-      [Phases.Render]: [
-        lerp,
-        syncOffset,
-        applyTranslation,
-        appProcessorThrottled(syncVisibility, 300),
-      ],
+      [Phases.Render]: [lerp, syncPosition, syncVisibilityThrottled, processStyles],
     },
   };
-};
+}

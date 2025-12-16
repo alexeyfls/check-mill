@@ -1,4 +1,4 @@
-export const enum DataAttributes {
-  SLIDE_INDEX = "data-slide-i",
-  CHECKBOX_INDEX = "data-checkbox-i",
+export const enum Dataset {
+  SLIDE_INDEX = "si",
+  CHECKBOX_INDEX = "ci",
 }

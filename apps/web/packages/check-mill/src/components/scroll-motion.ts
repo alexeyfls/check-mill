@@ -1,7 +1,3 @@
-/**
- * Defines the state structure for a single dimension of scroll motion.
- * These properties are used by motion and animation systems.
- */
 export interface MotionType {
   current: number;
   previous: number;
@@ -11,14 +7,6 @@ export interface MotionType {
   direction: number;
 }
 
-/**
- * A motion state container.
- *
- * Manages multiple 1D vectors used in scroll calculations,
- * such as current position, target position, velocity, and more.
- *
- * @returns {MotionType} A MotionType instance .
- */
 export function createMotion(): MotionType {
   return {
     current: 0.0,
@@ -30,12 +18,6 @@ export function createMotion(): MotionType {
   };
 }
 
-/**
- * Apply a uniform delta to Motion.
- *
- * @param motion - Motion to advance.
- * @param delta - Amount to increment each value by.
- */
 export function move(motion: MotionType, delta: number): void {
   motion.current += delta;
   motion.previous += delta;
@@ -43,12 +25,6 @@ export function move(motion: MotionType, delta: number): void {
   motion.target += delta;
 }
 
-/**
- * Sets all primary motion properties to a specific, static position.
- *
- * @param motion - The MotionType object to update.
- * @param position - The new static position to assign to all relevant fields.
- */
 export function moveTo(motion: MotionType, position: number): void {
   motion.current = position;
   motion.previous = position;
@@ -56,11 +32,6 @@ export function moveTo(motion: MotionType, position: number): void {
   motion.target = position;
 }
 
-/**
- * Resets the motion state to its initial, zeroed values.
- *
- * @param motion - The MotionType object to reset.
- */
 export function initial(motion: MotionType): void {
   const ref = createMotion();
 

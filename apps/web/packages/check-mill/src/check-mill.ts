@@ -1,8 +1,5 @@
+import type { AppRef, AppRenderFunction, AppSystemInstance, AppUpdateFunction } from "./components";
 import {
-  type AppRef,
-  type AppRenderFunction,
-  type AppSystemInstance,
-  type AppUpdateFunction,
   Phases,
   createAppRef,
   createPhasePipeline,
@@ -10,9 +7,8 @@ import {
   collectSystemLogic,
   createViewport,
 } from "./components";
+import type { Disposable, RenderLoopType } from "./core";
 import {
-  type Disposable,
-  type RenderLoopType,
   DisposableStoreId,
   RenderLoop,
   createDisposableStore,
@@ -21,7 +17,7 @@ import {
   createPhase,
   createMergedRunner,
 } from "./core";
-import { NetworkSystem, RenderSystem, ScrollSystem, UpdateSystem } from "./systems";
+import { NetworkSystem, RenderSystem, ScrollSystem, ToggleSystem, UpdateSystem } from "./systems";
 
 export type CheckMillType = {
   destroy: Disposable;
@@ -43,12 +39,11 @@ type ApplicationState = {
  * Initializes and starts the CheckMill application.
  *
  * @param root - The root HTML element for viewport calculations.
- * @param container - The main container element for the application.
  * @returns A promise that resolves to the application's public API.
  */
-export function CheckMill(root: HTMLElement, container: HTMLElement): Promise<CheckMillType> {
+export function CheckMill(root: HTMLElement): Promise<CheckMillType> {
   const appState: ApplicationState = {
-    appRef: createAppRef(root, container),
+    appRef: createAppRef(root),
     disposables: createDisposableStore(),
     renderLoop: null,
     readExecutor: null,
@@ -84,12 +79,13 @@ function reconfigure(appState: ApplicationState): void {
   appState.disposables.flush(DisposableStoreId.Reconfigurable);
 
   const prevAppRef = appState.appRef;
-  appState.appRef = createAppRef(prevAppRef.owner.root, prevAppRef.owner.container);
+  appState.appRef = createAppRef(prevAppRef.owner.root);
 
   const prependPipeline = createPhasePipeline();
 
   const systems: AppSystemInstance[] = [
     NetworkSystem(appState.appRef),
+    ToggleSystem(appState.appRef),
     ScrollSystem(appState.appRef),
     UpdateSystem(appState.appRef),
     RenderSystem(appState.appRef),
