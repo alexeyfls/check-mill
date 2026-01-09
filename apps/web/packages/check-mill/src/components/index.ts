@@ -1,5 +1,4 @@
 export * from "./app-ref";
-export * from "./axis";
 export * from "./component";
 export * from "./dom-factories";
 export * from "./gestures";

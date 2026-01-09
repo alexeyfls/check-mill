@@ -20,16 +20,14 @@ export function ToggleSystem(appRef: AppRef): AppSystemInstance {
     return () => disposables.flushAll();
   }
 
-  function processToggles(app: AppRef, _params: UpdateParams): AppRef {
-    if (toggleQueue.length === 0) return app;
+  function processToggles(app: AppRef, _params: UpdateParams): void {
+    if (toggleQueue.length === 0) return;
 
     for (const toggle of toggleQueue) {
       app.board.flip(toggle);
     }
 
     toggleQueue.length = 0;
-
-    return appRef;
   }
 
   function handleToggle(event: MouseEvent): void {

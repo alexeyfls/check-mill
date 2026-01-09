@@ -4,13 +4,12 @@
 export type PhaseIdentifier = number;
 
 /**
- * The basic unit of work: a function that receives a data object and
- * returns it, or returns null to stop the entire execution process.
+ * The basic unit of work
  *
  * @template T The type of the shared data object.
  * @template P The type of the optional extra argument.
  */
-export type ProcessorFunction<T, P = unknown> = (data: T, params: P) => T | null;
+export type ProcessorFunction<T, P = unknown> = (data: T, params: P) => void;
 
 /**
  * A simple object representing a phase of execution.
@@ -19,6 +18,8 @@ export interface Phase<T, P> {
   readonly phase: PhaseIdentifier;
   readonly functions: ReadonlyArray<ProcessorFunction<T, P>>;
 }
+
+let execIdx = 0;
 
 /**
  * Creates a Phase configuration object.
@@ -46,14 +47,12 @@ export function createPhase<T, P = unknown>(
 export function chainProcessors<T, P = unknown>(
   funcs: readonly ProcessorFunction<T, P>[]
 ): ProcessorFunction<T, P> {
-  return (data: T, params: P): T | null => {
-    for (const func of funcs) {
-      const result = func(data, params);
-      if (result === null) return null;
-      data = result;
+  return (data: T, params: P): void => {
+    for (execIdx = 0; execIdx >= 0 && execIdx < funcs.length; execIdx += 1) {
+      funcs[execIdx](data, params);
     }
 
-    return data;
+    execIdx = 0;
   };
 }
 
@@ -68,7 +67,15 @@ export function runIf<T, P = unknown>(
   predicate: (data: T, params: P) => boolean,
   fnToRun: ProcessorFunction<T, P>
 ): ProcessorFunction<T, P> {
-  return (data: T, params: P): T | null => (predicate(data, params) ? fnToRun(data, params) : data);
+  return (data: T, params: P): void => (predicate(data, params) ? fnToRun(data, params) : void 0);
+}
+
+export function skipPhaseIf<T, P = unknown>(
+  predicate: (data: T, params: P) => boolean
+): ProcessorFunction<T, P> {
+  return (data: T, params: P): void => {
+    predicate(data, params) && (execIdx = -2);
+  };
 }
 
 /**

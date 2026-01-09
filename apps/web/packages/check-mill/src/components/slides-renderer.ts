@@ -1,5 +1,4 @@
 import { px, type UintXBitSet } from "../core";
-import { type Axis } from "./axis";
 import { Dataset } from "./constants";
 import { CheckboxFactory } from "./dom-factories";
 import { type LayoutProperties } from "./layout";
@@ -23,18 +22,15 @@ type SlideTemplate = {
 export function createSlidesRenderer(
   ownerDocument: Document,
   root: HTMLElement,
-  axis: Axis,
   layout: Readonly<LayoutProperties>
 ): SlidesRendererType {
-  const translate = createTranslationController(axis);
+  const translate = createTranslationController();
   const templatePool: SlideTemplate[] = [];
   const activeTemplates = new Map<HTMLElement, SlideTemplate>();
 
   const { itemsPerSlide } = layout.pagination;
   const slideTranslateRange = layout.contentArea.height - layout.slideSpacing;
-  const stride = axis.isVertical
-    ? layout.slide.height + layout.slideSpacing
-    : layout.slide.width + layout.slideSpacing;
+  const stride = layout.slide.height + layout.slideSpacing;
 
   root.classList.add("_int_root");
 
@@ -44,24 +40,17 @@ export function createSlidesRenderer(
   }
 
   function mountContainers(slides: SlidesCollectionType): void {
-    const { width: vw, height: vh } = layout.viewportSize;
-    const { width: sw, height: sh } = layout.slide;
+    const { width: vw } = layout.viewportSize;
+    const { width: sw } = layout.slide;
     const centerX = px((vw - sw) / 2);
-    const centerY = px((vh - sh) / 2);
 
     const stage = ownerDocument.createDocumentFragment();
 
     for (const { nativeElement, realIndex } of slides) {
-      const staticOffset = px(realIndex * stride + layout.slideSpacing);
       const style = nativeElement.style;
 
-      if (axis.isVertical) {
-        style.top = staticOffset;
-        style.left = centerX;
-      } else {
-        style.left = staticOffset;
-        style.top = centerY;
-      }
+      style.top = px(realIndex * stride + layout.slideSpacing);
+      style.left = centerX;
 
       stage.appendChild(nativeElement);
     }
@@ -73,15 +62,20 @@ export function createSlidesRenderer(
     const { nativeElement, pageIndex } = slide;
     const container = nativeElement.firstElementChild as HTMLElement;
 
-    if (activeTemplates.has(container)) return;
+    if (activeTemplates.has(container)) {
+      const template = activeTemplates.get(container)!;
+
+      nativeElement.setAttribute(`data-${Dataset.SLIDE_INDEX}`, pageIndex.toString());
+      syncInputs(template.inputs, pageIndex, board);
+
+      return;
+    }
 
     const template = templatePool.pop();
     if (!template) return;
 
     nativeElement.setAttribute(`data-${Dataset.SLIDE_INDEX}`, pageIndex.toString());
-
     syncInputs(template.inputs, pageIndex, board);
-
     container.appendChild(template.wrapper);
     activeTemplates.set(container, template);
   }
@@ -93,10 +87,6 @@ export function createSlidesRenderer(
     if (!template) return;
 
     slide.nativeElement.removeAttribute(`data-${Dataset.SLIDE_INDEX}`);
-
-    container.removeChild(template.wrapper);
-    templatePool.push(template);
-    activeTemplates.delete(container);
   }
 
   function updateState(slide: Slide, board: UintXBitSet): void {

@@ -6,21 +6,15 @@ export function UpdateSystem(_appRef: AppRef): AppSystemInstance {
   return {
     init: () => noop,
     logic: {
-      [Phases.Update]: [processInertia, processLoop],
+      [Phases.Update]: [processInertia, loop],
     },
   };
 }
 
-function processLoop(appRef: AppRef): AppRef {
-  loop(appRef);
-  return appRef;
-}
-
-function processInertia(app: AppRef, params: UpdateParams): AppRef {
+function processInertia(app: AppRef, params: UpdateParams): void {
   const motion = app.motion;
   if (Math.abs(motion.velocity) < 0.01) {
     motion.velocity = 0;
-    return app;
   }
 
   const integratedVelocity = applyFriction(motion.velocity, 0.75 /* friction factor */, params.dt);
@@ -32,8 +26,6 @@ function processInertia(app: AppRef, params: UpdateParams): AppRef {
   motion.previous = motion.current;
   motion.current += displacement;
   motion.direction = Math.sign(displacement);
-
-  return app;
 }
 
 function applyFriction(velocity: number, friction: number, dt: number): number {

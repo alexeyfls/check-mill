@@ -19,8 +19,8 @@
       "command": "cd apps/web/check-mill-app && npm run dev",
       "runAtStart": true,
       "preview": {
-        "port": 5173
+        "port": 5174
       }
-    },
+    }
   }
 }

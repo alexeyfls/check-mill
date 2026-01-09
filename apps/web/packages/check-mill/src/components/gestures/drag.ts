@@ -6,7 +6,6 @@ import {
   event,
   prevent,
 } from "../../core";
-import { type Axis } from "../axis";
 import { type Component } from "../component";
 import {
   type Gesture,
@@ -27,7 +26,7 @@ interface MoveSample {
 
 export interface DragGesture extends Component, Gesture {}
 
-export function createDragGesture(root: HTMLElement, axis: Axis): DragGesture {
+export function createDragGesture(root: HTMLElement): DragGesture {
   let startEvent: PointerEvent;
 
   let lastEvent: PointerEvent;
@@ -87,7 +86,7 @@ export function createDragGesture(root: HTMLElement, axis: Axis): DragGesture {
     }
 
     lastEvent = event;
-    const gEvent = gestureEvent(GestureType.Drag, GestureState.Update, axis.direction(diff));
+    const gEvent = gestureEvent(GestureType.Drag, GestureState.Update, diff);
     dragged.emit(gEvent);
   }
 
@@ -143,8 +142,7 @@ export function createDragGesture(root: HTMLElement, axis: Axis): DragGesture {
   }
 
   function readPoint(event: PointerEvent): number {
-    const property: keyof Touch = `client${axis.isVertical ? "Y" : "X"}`;
-    return event[property];
+    return event.clientY;
   }
 
   function readTime(event: Event): number {

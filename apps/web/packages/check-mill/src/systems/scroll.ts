@@ -18,8 +18,8 @@ export function ScrollSystem(appRef: AppRef): AppSystemInstance {
   const wheelQueue: GestureEvent[] = [];
 
   function init(): Disposable {
-    const dragGesture = createDragGesture(appRef.owner.root, appRef.axis);
-    const wheelGesture = createWheelGesture(appRef.owner.root, appRef.axis);
+    const dragGesture = createDragGesture(appRef.owner.root);
+    const wheelGesture = createWheelGesture(appRef.owner.root);
 
     dragGesture.register((e) => dragQueue.push(e));
     wheelGesture.register((e) => wheelQueue.push(e));
@@ -33,8 +33,8 @@ export function ScrollSystem(appRef: AppRef): AppSystemInstance {
     return () => disposables.flushAll();
   }
 
-  function processWheelScroll(app: AppRef, _params: UpdateParams): AppRef {
-    if (wheelQueue.length === 0) return app;
+  function processWheelScroll(app: AppRef, _params: UpdateParams): void {
+    if (wheelQueue.length === 0) return;
 
     const motion = app.motion;
     let accumulatedDelta = 0;
@@ -52,11 +52,10 @@ export function ScrollSystem(appRef: AppRef): AppSystemInstance {
     }
 
     wheelQueue.length = 0;
-    return app;
   }
 
-  function processDragScroll(app: AppRef, _params: UpdateParams): AppRef {
-    if (dragQueue.length === 0) return app;
+  function processDragScroll(app: AppRef, _params: UpdateParams): void {
+    if (dragQueue.length === 0) return;
 
     const motion = app.motion;
 
@@ -81,7 +80,6 @@ export function ScrollSystem(appRef: AppRef): AppSystemInstance {
     }
 
     dragQueue.length = 0;
-    return app;
   }
 
   return {

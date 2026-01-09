@@ -1,18 +1,10 @@
-import { type Axis } from "./axis";
-
 export type TranslateType = {
   to: (element: HTMLElement, target: number) => void;
   clear: (element: HTMLElement) => void;
 };
 
-export function createTranslationController(axis: Axis): TranslateType {
-  const translate = axis.isVertical ? y : x;
-
-  function x(n: number): string {
-    return `translate3d(${n}px, 0px, 0px)`;
-  }
-
-  function y(n: number): string {
+export function createTranslationController(): TranslateType {
+  function translate(n: number): string {
     return `translate3d(0px, ${n}px, 0px)`;
   }
 

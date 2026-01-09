@@ -6,8 +6,6 @@ import type {
   RenderParams,
 } from "../core";
 import { assert, createFlagManager, UintXBitSet } from "../core";
-import type { Axis } from "./axis";
-import { createAxis } from "./axis";
 import { SlideFactory } from "./dom-factories";
 import type { LayoutProperties } from "./layout";
 import { createLayout } from "./layout";
@@ -38,7 +36,6 @@ export interface AppRef {
     document: Document;
     root: HTMLElement;
   };
-  axis: Axis;
   board: UintXBitSet;
   dirtyFlags: BitwiseFlags;
   layout: Readonly<LayoutProperties>;
@@ -98,24 +95,6 @@ export function mergePipelines(pipelines: PhasePipeline[]): PhasePipeline {
   return merged;
 }
 
-export function appProcessorThrottled<P extends { t: number }>(
-  fn: ProcessorFunction<AppRef, P>,
-  delay: number
-): ProcessorFunction<AppRef, P> {
-  let lastExecutionTime = -Infinity;
-
-  return (appRef, params) => {
-    const currentTime = params.t;
-
-    if (currentTime - lastExecutionTime >= delay) {
-      lastExecutionTime = currentTime;
-      return fn(appRef, params);
-    }
-
-    return appRef;
-  };
-}
-
 export function createAppRef(root: HTMLElement): AppRef {
   const document = root.ownerDocument;
   const window = document.defaultView;
@@ -162,7 +141,6 @@ export function createAppRef(root: HTMLElement): AppRef {
   };
 
   return {
-    axis: createAxis("y"),
     board: UintXBitSet.empty(16, 65_535),
     dirtyFlags: createFlagManager(AppDirtyFlags.None),
     layout,

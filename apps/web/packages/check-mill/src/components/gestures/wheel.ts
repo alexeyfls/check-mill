@@ -7,7 +7,6 @@ import {
   prevent,
   revert,
 } from "../../core";
-import { type Axis } from "../axis";
 import { type Component } from "../component";
 import {
   type GestureEvent,
@@ -23,7 +22,7 @@ const STATIC_PAGE_HEIGHT = 800;
 
 export interface WheelGesture extends Component, Gesture {}
 
-export function createWheelGesture(root: HTMLElement, axis: Axis): WheelGesture {
+export function createWheelGesture(root: HTMLElement): WheelGesture {
   const wheeled = new TypedEvent<GestureEvent>();
 
   function init(): Disposable {
@@ -61,8 +60,7 @@ export function createWheelGesture(root: HTMLElement, axis: Axis): WheelGesture 
   }
 
   function readPoint(event: WheelEvent): number {
-    const property: keyof WheelEvent = `delta${axis.isVertical ? "Y" : "X"}`;
-    return event[property];
+    return event.deltaY;
   }
 
   return {

@@ -16,6 +16,7 @@ import {
   throttle,
   createPhase,
   createMergedRunner,
+  noop,
 } from "./core";
 import { NetworkSystem, RenderSystem, ScrollSystem, ToggleSystem, UpdateSystem } from "./systems";
 
@@ -24,15 +25,15 @@ export type CheckMillType = {
 };
 
 /**
- * Internal state "struct" for the entire application.
+ * Internal state for the entire application.
  */
 type ApplicationState = {
   appRef: AppRef;
   readonly disposables: ReturnType<typeof createDisposableStore>;
   renderLoop: RenderLoopType | null;
 
-  readExecutor: AppUpdateFunction | null;
-  writeExecutor: AppRenderFunction | null;
+  readExecutor: AppUpdateFunction;
+  writeExecutor: AppRenderFunction;
 };
 
 /**
@@ -46,8 +47,8 @@ export function CheckMill(root: HTMLElement): Promise<CheckMillType> {
     appRef: createAppRef(root),
     disposables: createDisposableStore(),
     renderLoop: null,
-    readExecutor: null,
-    writeExecutor: null,
+    readExecutor: noop,
+    writeExecutor: noop,
   };
 
   setupStaticListeners(appState);

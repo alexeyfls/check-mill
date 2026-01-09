@@ -1,5 +1,6 @@
 import type {
   AppRef,
+  AppRenderFunction,
   AppSystemInstance,
   SlidesRendererType,
   VisibilityTrackerType,
@@ -7,20 +8,17 @@ import type {
 import {
   Phases,
   VisibilityChange,
-  appProcessorThrottled,
   writeVariables,
   createVisibilityTracker,
   createSlidesRenderer,
   AppDirtyFlags,
 } from "../components";
 import type { Disposable, RenderParams } from "../core";
-import { DisposableStoreId, createDisposableStore } from "../core";
+import { DisposableStoreId, createDisposableStore, throttle } from "../core";
 
 export function RenderSystem(appRef: AppRef): AppSystemInstance {
   let renderer: SlidesRendererType;
   let visibilityTracker: VisibilityTrackerType;
-
-  const syncVisibilityThrottled = appProcessorThrottled(syncVisibility, 300);
 
   function init(): Disposable {
     visibilityTracker = createVisibilityTracker(
@@ -28,12 +26,7 @@ export function RenderSystem(appRef: AppRef): AppSystemInstance {
       appRef.slides.map((s) => s.nativeElement)
     );
 
-    renderer = createSlidesRenderer(
-      appRef.owner.document,
-      appRef.owner.root,
-      appRef.axis,
-      appRef.layout
-    );
+    renderer = createSlidesRenderer(appRef.owner.document, appRef.owner.root, appRef.layout);
     renderer.mountContainers(appRef.slides);
 
     writeVariables(appRef.owner.root, appRef.layout);
@@ -44,7 +37,7 @@ export function RenderSystem(appRef: AppRef): AppSystemInstance {
     return () => disposables.flushAll();
   }
 
-  function syncVisibility(app: AppRef, _params: RenderParams): AppRef {
+  function syncVisibility(app: AppRef, _params: RenderParams): void {
     const records = visibilityTracker.takeRecords();
 
     for (const record of records) {
@@ -58,25 +51,19 @@ export function RenderSystem(appRef: AppRef): AppSystemInstance {
           break;
       }
     }
-
-    return app;
   }
 
-  function syncPosition(app: AppRef, _params: RenderParams): AppRef {
+  function syncPosition(app: AppRef, _params: RenderParams): void {
     renderer.syncPosition(app.slides, app.motion);
-    return app;
   }
 
-  function lerp(app: AppRef, params: RenderParams): AppRef {
+  function lerp(app: AppRef, params: RenderParams): void {
     const motion = app.motion;
-
     const interpolated = motion.current * params.alpha + motion.previous * (1.0 - params.alpha);
     motion.offset = interpolated;
-
-    return app;
   }
 
-  function processStyles(app: AppRef, _params: RenderParams): AppRef {
+  function processStyles(app: AppRef, _params: RenderParams): void {
     const classList = app.owner.root.classList;
     const isGestureRunning = app.dirtyFlags.is(AppDirtyFlags.GestureRunning);
     const containsClass = classList.contains("is-scrolling");
@@ -86,14 +73,17 @@ export function RenderSystem(appRef: AppRef): AppSystemInstance {
     } else {
       containsClass && classList.remove("is-scrolling");
     }
-
-    return app;
   }
 
   return {
     init,
     logic: {
-      [Phases.Render]: [lerp, syncPosition, syncVisibilityThrottled, processStyles],
+      [Phases.Render]: [
+        lerp,
+        syncPosition,
+        throttle<AppRenderFunction>(syncVisibility, 300),
+        processStyles,
+      ],
     },
   };
 }
