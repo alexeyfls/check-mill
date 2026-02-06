@@ -103,7 +103,7 @@ export function createAppRef(root: HTMLElement): AppRef {
   const rect = root.getBoundingClientRect();
 
   const layout = createLayout({
-    checkboxSize: 32,
+    checkboxSize: 24,
     gridSpacing: 8,
     viewportSize: {
       width: rect.width,

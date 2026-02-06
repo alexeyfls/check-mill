@@ -19,6 +19,8 @@
   left: 0;
   width: var(--slide-width);
   height: var(--slide-height);
+  content-visibility: auto;
+  contain-intrinsic-size: var(--slide-width) var(--slide-height);
   background: rgb(255, 255, 255);
   border-radius: 8px;
   will-change: transform;
@@ -34,11 +36,12 @@
   contain: layout paint;
   opacity: 0;
   transition: 0.3s opacity ease-in-out;
-
-  &:not(:empty) {
-    opacity: 1;
-  }
 }
+
+._int_container:not(:empty) {
+  opacity: 1;
+}
+
 
 input[type="checkbox"] {
   position: absolute;

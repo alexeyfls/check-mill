@@ -20,6 +20,9 @@ export function RenderSystem(appRef: AppRef): AppSystemInstance {
   let renderer: SlidesRendererType;
   let visibilityTracker: VisibilityTrackerType;
 
+  const BATCH_SIZE = 2;
+  const recordQueue: ReturnType<VisibilityTrackerType["takeRecords"]> = [];
+
   function init(): Disposable {
     visibilityTracker = createVisibilityTracker(
       appRef.owner.root,
@@ -39,8 +42,16 @@ export function RenderSystem(appRef: AppRef): AppSystemInstance {
 
   function syncVisibility(app: AppRef, _params: RenderParams): void {
     const records = visibilityTracker.takeRecords();
+    if (records.length > 0) {
+      recordQueue.push(...records);
+    }
 
-    for (const record of records) {
+    const limit = Math.min(recordQueue.length, BATCH_SIZE);
+
+    for (let i = 0; i < limit; i++) {
+      const record = recordQueue.shift();
+      if (!record) continue;
+
       switch (record.change) {
         case VisibilityChange.Exited:
           renderer.dehydrate(app.slides[record.index]);
@@ -81,7 +92,7 @@ export function RenderSystem(appRef: AppRef): AppSystemInstance {
       [Phases.Render]: [
         lerp,
         syncPosition,
-        throttle<AppRenderFunction>(syncVisibility, 300),
+        throttle<AppRenderFunction>(syncVisibility, 32),
         processStyles,
       ],
     },

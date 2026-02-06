@@ -19,8 +19,6 @@ export interface Phase<T, P> {
   readonly functions: ReadonlyArray<ProcessorFunction<T, P>>;
 }
 
-let execIdx = 0;
-
 /**
  * Creates a Phase configuration object.
  *
@@ -47,13 +45,7 @@ export function createPhase<T, P = unknown>(
 export function chainProcessors<T, P = unknown>(
   funcs: readonly ProcessorFunction<T, P>[]
 ): ProcessorFunction<T, P> {
-  return (data: T, params: P): void => {
-    for (execIdx = 0; execIdx >= 0 && execIdx < funcs.length; execIdx += 1) {
-      funcs[execIdx](data, params);
-    }
-
-    execIdx = 0;
-  };
+  return (data: T, params: P): void => funcs.forEach(func => func(data, params));
 }
 
 /**
@@ -68,14 +60,6 @@ export function runIf<T, P = unknown>(
   fnToRun: ProcessorFunction<T, P>
 ): ProcessorFunction<T, P> {
   return (data: T, params: P): void => (predicate(data, params) ? fnToRun(data, params) : void 0);
-}
-
-export function skipPhaseIf<T, P = unknown>(
-  predicate: (data: T, params: P) => boolean
-): ProcessorFunction<T, P> {
-  return (data: T, params: P): void => {
-    predicate(data, params) && (execIdx = -2);
-  };
 }
 
 /**

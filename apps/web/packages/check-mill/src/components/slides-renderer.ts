@@ -26,6 +26,7 @@ export function createSlidesRenderer(
 ): SlidesRendererType {
   const translate = createTranslationController();
   const templatePool: SlideTemplate[] = [];
+  const freeTemplates: SlideTemplate[] = [];
   const activeTemplates = new Map<HTMLElement, SlideTemplate>();
 
   const { itemsPerSlide } = layout.pagination;
@@ -62,29 +63,39 @@ export function createSlidesRenderer(
     const { nativeElement, pageIndex } = slide;
     const container = nativeElement.firstElementChild as HTMLElement;
 
-    if (activeTemplates.has(container)) {
-      const template = activeTemplates.get(container)!;
+    let template = activeTemplates.get(container);
 
-      nativeElement.setAttribute(`data-${Dataset.SLIDE_INDEX}`, pageIndex.toString());
-      syncInputs(template.inputs, pageIndex, board);
+    if (!template) {
+      // Try to get a free template that is already in the DOM elsewhere 
+      // or pull from the initial pool
+      template = freeTemplates.pop() || templatePool.pop();
 
-      return;
+      if (template) {
+        // If it's a recycled template, ensure it's attached to THIS container
+        if (template.wrapper.parentElement !== container) {
+          container.appendChild(template.wrapper);
+        }
+        template.wrapper.style.display = "contents"; // Show it
+        activeTemplates.set(container, template);
+      }
     }
 
-    const template = templatePool.pop();
-    if (!template) return;
-
-    nativeElement.setAttribute(`data-${Dataset.SLIDE_INDEX}`, pageIndex.toString());
-    syncInputs(template.inputs, pageIndex, board);
-    container.appendChild(template.wrapper);
-    activeTemplates.set(container, template);
+    if (template) {
+      nativeElement.setAttribute(`data-${Dataset.SLIDE_INDEX}`, pageIndex.toString());
+      syncInputs(template.inputs, pageIndex, board);
+    }
   }
 
   function dehydrate(slide: Slide): void {
     const container = slide.nativeElement.firstElementChild as HTMLElement;
     const template = activeTemplates.get(container);
 
-    if (!template) return;
+    if (template) {
+      // Keep it in the DOM, but hide it and mark it as free
+      template.wrapper.style.display = "none"; 
+      freeTemplates.push(template);
+      activeTemplates.delete(container);
+    }
 
     slide.nativeElement.removeAttribute(`data-${Dataset.SLIDE_INDEX}`);
   }

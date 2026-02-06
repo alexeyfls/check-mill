@@ -2,8 +2,6 @@ import type { AppRef, AppRenderFunction, AppSystemInstance, AppUpdateFunction } 
 import {
   Phases,
   createAppRef,
-  createPhasePipeline,
-  mergePipelines,
   collectSystemLogic,
   createViewport,
 } from "./components";
@@ -82,8 +80,6 @@ function reconfigure(appState: ApplicationState): void {
   const prevAppRef = appState.appRef;
   appState.appRef = createAppRef(prevAppRef.owner.root);
 
-  const prependPipeline = createPhasePipeline();
-
   const systems: AppSystemInstance[] = [
     NetworkSystem(appState.appRef),
     ToggleSystem(appState.appRef),
@@ -92,20 +88,20 @@ function reconfigure(appState: ApplicationState): void {
     RenderSystem(appState.appRef),
   ];
 
-  const finalPipeline = mergePipelines([prependPipeline, collectSystemLogic(systems)]);
+  const pipeline = collectSystemLogic(systems);
 
   for (const system of systems) {
     appState.disposables.push(DisposableStoreId.Reconfigurable, system.init());
   }
 
   appState.readExecutor = createMergedRunner([
-    createPhase(Phases.IO, finalPipeline[Phases.IO]),
-    createPhase(Phases.Update, finalPipeline[Phases.Update]),
+    createPhase(Phases.IO, pipeline[Phases.IO]),
+    createPhase(Phases.Update, pipeline[Phases.Update]),
   ]);
 
   appState.writeExecutor = createMergedRunner([
-    createPhase(Phases.Render, finalPipeline[Phases.Render]),
-    createPhase(Phases.Cleanup, finalPipeline[Phases.Cleanup]),
+    createPhase(Phases.Render, pipeline[Phases.Render]),
+    createPhase(Phases.Cleanup, pipeline[Phases.Cleanup]),
   ]);
 }
 
