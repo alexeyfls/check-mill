@@ -26,7 +26,7 @@ export function RenderSystem(appRef: AppRef): AppSystemInstance {
   function init(): Disposable {
     visibilityTracker = createVisibilityTracker(
       appRef.owner.root,
-      appRef.slides.map((s) => s.nativeElement)
+      appRef.slides.map((s) => s.nativeElement),
     );
 
     renderer = createSlidesRenderer(appRef.owner.document, appRef.owner.root, appRef.layout);
@@ -46,7 +46,8 @@ export function RenderSystem(appRef: AppRef): AppSystemInstance {
       recordQueue.push(...records);
     }
 
-    const limit = Math.min(recordQueue.length, BATCH_SIZE);
+    const dynamicBatchSize = Math.ceil(Math.abs(app.motion.velocity) / 5) + BATCH_SIZE;
+    const limit = Math.min(recordQueue.length, dynamicBatchSize);
 
     for (let i = 0; i < limit; i++) {
       const record = recordQueue.shift();
