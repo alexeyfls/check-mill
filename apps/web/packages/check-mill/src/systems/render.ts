@@ -1,6 +1,5 @@
 import type {
   AppRef,
-  AppRenderFunction,
   AppSystemInstance,
   SlidesRendererType,
   VisibilityTrackerType,
@@ -13,7 +12,7 @@ import {
   createSlidesRenderer,
   AppDirtyFlags,
 } from "../components";
-import type { Disposable, RenderParams } from "../core";
+import type { Disposable, LoopParams } from "../core";
 import { DisposableStoreId, createDisposableStore, throttle } from "../core";
 
 export function RenderSystem(appRef: AppRef): AppSystemInstance {
@@ -40,7 +39,7 @@ export function RenderSystem(appRef: AppRef): AppSystemInstance {
     return () => disposables.flushAll();
   }
 
-  function syncVisibility(app: AppRef, _params: RenderParams): void {
+  function syncVisibility(app: AppRef, _params: LoopParams): void {
     const records = visibilityTracker.takeRecords();
     if (records.length > 0) {
       recordQueue.push(...records);
@@ -69,11 +68,11 @@ export function RenderSystem(appRef: AppRef): AppSystemInstance {
     }
   }
 
-  function syncPosition(app: AppRef, _params: RenderParams): void {
+  function syncPosition(app: AppRef, _params: LoopParams): void {
     renderer.syncPosition(app.slides, app.motion);
   }
 
-  function lerp(app: AppRef, params: RenderParams): void {
+  function lerp(app: AppRef, params: LoopParams): void {
     const motion = app.motion;
     const isDragging = app.dirtyFlags.is(AppDirtyFlags.GestureRunning);
 
@@ -84,7 +83,7 @@ export function RenderSystem(appRef: AppRef): AppSystemInstance {
     }
   }
 
-  function processStyles(app: AppRef, _params: RenderParams): void {
+  function processStyles(app: AppRef, _params: LoopParams): void {
     const classList = app.owner.root.classList;
     const isGestureRunning = app.dirtyFlags.is(AppDirtyFlags.GestureRunning);
     const containsClass = classList.contains("is-scrolling");
@@ -99,12 +98,7 @@ export function RenderSystem(appRef: AppRef): AppSystemInstance {
   return {
     init,
     logic: {
-      [Phases.Render]: [
-        lerp,
-        syncPosition,
-        throttle<AppRenderFunction>(syncVisibility, 32),
-        processStyles,
-      ],
+      [Phases.Render]: [lerp, syncPosition, throttle(syncVisibility, 32), processStyles],
     },
   };
 }

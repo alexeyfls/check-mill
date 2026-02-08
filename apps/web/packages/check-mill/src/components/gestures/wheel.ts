@@ -16,46 +16,39 @@ import {
   gestureEvent,
 } from "./gesture";
 
-const STATIC_LINE_HEIGHT = 16;
-const STATIC_PAGE_HEIGHT = 800;
+const LINE_HEIGHT = 40;
+const PAGE_HEIGHT_FALLBACK = 800;
 
 export interface WheelGesture extends Component, Gesture {}
 
 export function createWheelGesture(root: HTMLElement): WheelGesture {
+  const disposables = createDisposableStore();
   const wheeled = new TypedEvent<GestureEvent>();
 
+  const DeltaMultiplier = {
+    [WheelEvent.DOM_DELTA_LINE]: LINE_HEIGHT,
+    [WheelEvent.DOM_DELTA_PAGE]: root.clientHeight || PAGE_HEIGHT_FALLBACK,
+    [WheelEvent.DOM_DELTA_PIXEL]: 1,
+  } as const;
+
   function init(): Disposable {
-    const disposables = createDisposableStore();
-    disposables.push(DisposableStoreId.Static, wheeled.clear, event(root, "wheel", onWheel));
+    disposables.push(
+      DisposableStoreId.Static,
+      wheeled.clear,
+      event(root, "wheel", onWheel, { passive: false }),
+    );
 
     return () => disposables.flushAll();
   }
 
   function onWheel(event: WheelEvent) {
-    const gEvent = gestureEvent(
-      GestureType.Wheel,
-      GestureState.Update,
-      revert(normalizeDelta(event)),
-    );
-    wheeled.emit(gEvent);
-
     prevent(event, true);
-  }
 
-  function normalizeDelta(event: WheelEvent): number {
-    const rawDelta = readPoint(event);
+    // @ts-ignore
+    const multiplier = DeltaMultiplier[event.deltaMode] ?? 1;
+    const delta = readPoint(event) * multiplier;
 
-    switch (event.deltaMode) {
-      case WheelEvent.DOM_DELTA_LINE:
-        return rawDelta * STATIC_LINE_HEIGHT;
-
-      case WheelEvent.DOM_DELTA_PAGE:
-        return rawDelta * STATIC_PAGE_HEIGHT;
-
-      case WheelEvent.DOM_DELTA_PIXEL:
-      default:
-        return rawDelta;
-    }
+    wheeled.emit(gestureEvent(GestureType.Wheel, GestureState.Update, revert(delta)));
   }
 
   function readPoint(event: WheelEvent): number {

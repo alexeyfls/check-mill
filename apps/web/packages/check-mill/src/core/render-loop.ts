@@ -1,45 +1,26 @@
 import { assert } from "../core";
 
 /**
- * Parameters passed to the update function during the fixed simulation step.
+ * Unified parameters for both simulation updates and frame rendering.
  */
-export type UpdateParams = {
+export type LoopParams = {
   /**
-   * The current simulation time (ms).
+   * The current total simulation time (ms).
    */
+
   t: number;
-
   /**
-   * The fixed time step for this update.
-   *
+   * The fixed time step duration (ms).
    */
+
   dt: number;
-};
-
-/**
- * Parameters passed to the render function during the variable rendering step.
- */
-export type RenderParams = {
   /**
-   * The current simulation time (ms).
-   */
-  t: number;
-
-  /**
-   * The fixed time step used in the update phase.
-   */
-  dt: number;
-
-  /**
-   * The interpolation factor (0.0 to 1.0) representing the remaining time
-   * in the accumulator. Used to blend between the previous and current physics state.
+   * Interpolation factor (0.0 to 1.0).
+   * Represents the progress between the previous and current physics state.
    */
   alpha: number;
 };
 
-/**
- * Represents the interface for a Render Loop that can be controlled.
- */
 export interface RenderLoopType {
   /**
    * Starts the game loop.
@@ -73,9 +54,9 @@ export interface RenderLoopType {
  */
 export function RenderLoop(
   ownerWindow: Window,
-  update: (params: UpdateParams) => void,
-  render: (params: RenderParams) => void,
-  fps: number = 60
+  update: (params: LoopParams) => void,
+  render: (params: LoopParams) => void,
+  fps: number = 60,
 ): RenderLoopType {
   assert(fps > 0, `Invalid FPS value: ${fps}.`);
 
@@ -120,15 +101,9 @@ export function RenderLoop(
   let animationId: number | null = null;
 
   /**
-   * Reusable object for update parameters to avoid Garbage Collection pressure.
-   * We mutate this object instead of creating a new one every frame.
+   * Reusable parameter object to prevent GC pressure.
    */
-  const updateParams: UpdateParams = { t: 0, dt: fixedTimeStep };
-
-  /**
-   * Reusable object for render parameters.
-   */
-  const renderParams: RenderParams = { t: 0, dt: fixedTimeStep, alpha: 0 };
+  const params: LoopParams = { t: 0, dt: fixedTimeStep, alpha: 0 };
 
   /**
    * Starts the loop by requesting the first animation frame.
@@ -138,7 +113,6 @@ export function RenderLoop(
 
     lastTimeStamp = null;
     accumulator = 0;
-
     animationId = ownerWindow.requestAnimationFrame(tick);
   }
 
@@ -173,6 +147,7 @@ export function RenderLoop(
     }
 
     accumulator += frameTime;
+    params.alpha = 0;
 
     let updatesCount = 0;
     while (accumulator >= fixedTimeStep) {
@@ -181,9 +156,9 @@ export function RenderLoop(
         break;
       }
 
-      updateParams.t = simulationTime;
+      params.t = simulationTime;
 
-      update(updateParams);
+      update(params);
 
       simulationTime += fixedTimeStep;
       accumulator -= fixedTimeStep;
@@ -192,10 +167,10 @@ export function RenderLoop(
 
     const alpha = accumulator / fixedTimeStep;
 
-    renderParams.t = simulationTime;
-    renderParams.alpha = alpha;
+    params.t = simulationTime;
+    params.alpha = alpha;
 
-    render(renderParams);
+    render(params);
 
     animationId = ownerWindow.requestAnimationFrame(tick);
   }

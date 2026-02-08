@@ -1,6 +1,7 @@
 import type { AppRef, AppSystemInstance } from "../components";
 import { Phases, loop } from "../components";
-import { UpdateParams, noop } from "../core";
+import type { LoopParams } from "../core";
+import { noop } from "../core";
 
 const FRICTION = 0.92;
 
@@ -13,7 +14,7 @@ export function UpdateSystem(_appRef: AppRef): AppSystemInstance {
   };
 }
 
-function processInertia(app: AppRef, params: UpdateParams): void {
+function processInertia(app: AppRef, params: LoopParams): void {
   const motion = app.motion;
 
   motion.velocity *= Math.pow(FRICTION, params.dt / 16.67);

@@ -1,10 +1,5 @@
-import type { AppRef, AppRenderFunction, AppSystemInstance, AppUpdateFunction } from "./components";
-import {
-  Phases,
-  createAppRef,
-  collectSystemLogic,
-  createViewport,
-} from "./components";
+import type { AppRef, AppProcessoFunction, AppSystemInstance } from "./components";
+import { Phases, createAppRef, collectSystemLogic, createViewport } from "./components";
 import type { Disposable, RenderLoopType } from "./core";
 import {
   DisposableStoreId,
@@ -30,8 +25,8 @@ type ApplicationState = {
   readonly disposables: ReturnType<typeof createDisposableStore>;
   renderLoop: RenderLoopType | null;
 
-  readExecutor: AppUpdateFunction;
-  writeExecutor: AppRenderFunction;
+  readExecutor: AppProcessoFunction;
+  writeExecutor: AppProcessoFunction;
 };
 
 /**
@@ -56,7 +51,7 @@ export function CheckMill(root: HTMLElement): Promise<CheckMillType> {
     appState.appRef.owner.window,
     (t) => appState.readExecutor!(appState.appRef, t),
     (t) => appState.writeExecutor!(appState.appRef, t),
-    60 /* fps */
+    60 /* fps */,
   );
 
   appState.renderLoop.start();
@@ -128,6 +123,6 @@ function setupStaticListeners(appState: ApplicationState): void {
   appState.disposables.push(
     DisposableStoreId.Static,
     viewport.init(),
-    event(appState.appRef.owner.document, "visibilitychange", onVisibilityChange)
+    event(appState.appRef.owner.document, "visibilitychange", onVisibilityChange),
   );
 }

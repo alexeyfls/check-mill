@@ -22,7 +22,7 @@ type SlideTemplate = {
 export function createSlidesRenderer(
   ownerDocument: Document,
   root: HTMLElement,
-  layout: Readonly<LayoutProperties>
+  layout: Readonly<LayoutProperties>,
 ): SlidesRendererType {
   const translate = createTranslationController();
   const templatePool: SlideTemplate[] = [];
@@ -30,7 +30,7 @@ export function createSlidesRenderer(
   const activeTemplates = new Map<HTMLElement, SlideTemplate>();
 
   const { itemsPerSlide } = layout.pagination;
-  const slideTranslateRange = layout.contentArea.height - layout.slideSpacing;
+  const slideTranslateRange = layout.contentArea.height - 2 * layout.slideSpacing;
   const stride = layout.slide.height + layout.slideSpacing;
 
   root.classList.add("_int_root");
@@ -66,16 +66,13 @@ export function createSlidesRenderer(
     let template = activeTemplates.get(container);
 
     if (!template) {
-      // Try to get a free template that is already in the DOM elsewhere 
-      // or pull from the initial pool
       template = freeTemplates.pop() || templatePool.pop();
 
       if (template) {
-        // If it's a recycled template, ensure it's attached to THIS container
         if (template.wrapper.parentElement !== container) {
           container.appendChild(template.wrapper);
         }
-        template.wrapper.style.display = "contents"; // Show it
+        template.wrapper.style.display = "contents";
         activeTemplates.set(container, template);
       }
     }
@@ -91,8 +88,7 @@ export function createSlidesRenderer(
     const template = activeTemplates.get(container);
 
     if (template) {
-      // Keep it in the DOM, but hide it and mark it as free
-      template.wrapper.style.display = "none"; 
+      template.wrapper.style.display = "none";
       freeTemplates.push(template);
       activeTemplates.delete(container);
     }

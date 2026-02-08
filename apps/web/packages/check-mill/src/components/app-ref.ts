@@ -1,10 +1,4 @@
-import type {
-  BitwiseFlags,
-  Disposable,
-  ProcessorFunction,
-  UpdateParams,
-  RenderParams,
-} from "../core";
+import type { BitwiseFlags, Disposable, ProcessorFunction, LoopParams } from "../core";
 import { assert, createFlagManager, UintXBitSet } from "../core";
 import { SlideFactory } from "./dom-factories";
 import type { LayoutProperties } from "./layout";
@@ -44,15 +38,13 @@ export interface AppRef {
   loopState: LoopState;
 }
 
-export type AppUpdateFunction = ProcessorFunction<AppRef, UpdateParams>;
-
-export type AppRenderFunction = ProcessorFunction<AppRef, RenderParams>;
+export type AppProcessoFunction = ProcessorFunction<AppRef, LoopParams>;
 
 export type PhasePipeline = {
-  [Phases.IO]: AppUpdateFunction[];
-  [Phases.Update]: AppUpdateFunction[];
-  [Phases.Render]: AppRenderFunction[];
-  [Phases.Cleanup]: AppRenderFunction[];
+  [Phases.IO]: AppProcessoFunction[];
+  [Phases.Update]: AppProcessoFunction[];
+  [Phases.Render]: AppProcessoFunction[];
+  [Phases.Cleanup]: AppProcessoFunction[];
 };
 
 export interface AppSystemInstance {

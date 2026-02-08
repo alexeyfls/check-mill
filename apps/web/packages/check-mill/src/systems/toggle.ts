@@ -1,26 +1,24 @@
 import type { AppRef, AppSystemInstance } from "../components";
-import { Phases } from "../components";
-import { Dataset } from "../components/constants";
-import type { Disposable } from "../core";
-import { DisposableStoreId, createDisposableStore, event, UpdateParams } from "../core";
+import { Phases, Dataset } from "../components";
+import type { Disposable, LoopParams } from "../core";
+import { DisposableStoreId, createDisposableStore, event } from "../core";
 
 export function ToggleSystem(appRef: AppRef): AppSystemInstance {
   const toggleQueue: number[] = [];
-
+  const disposables = createDisposableStore();
   const itemsPerSlide = appRef.layout.pagination.itemsPerSlide;
 
   function init(): Disposable {
-    const disposables = createDisposableStore();
     disposables.push(
       DisposableStoreId.Static,
       event(appRef.owner.root, "click", handleToggle),
-      () => (toggleQueue.length = 0)
+      () => (toggleQueue.length = 0),
     );
 
     return () => disposables.flushAll();
   }
 
-  function processToggles(app: AppRef, _params: UpdateParams): void {
+  function processToggles(app: AppRef, _params: LoopParams): void {
     if (toggleQueue.length === 0) return;
 
     for (const toggle of toggleQueue) {
