@@ -9,9 +9,7 @@ import {
 import type { Disposable } from "../core";
 import { DisposableStoreId, createDisposableStore, UpdateParams } from "../core";
 
-const WHEEL_FORCE_MULTIPLIER = 0.05;
-
-const MAX_WHEEL_VELOCITY = 32;
+const WHEEL_SENSITIVITY = 15;
 
 export function ScrollSystem(appRef: AppRef): AppSystemInstance {
   const dragQueue: GestureEvent[] = [];
@@ -43,13 +41,9 @@ export function ScrollSystem(appRef: AppRef): AppSystemInstance {
       accumulatedDelta += event.delta;
     }
 
-    motion.velocity += accumulatedDelta * WHEEL_FORCE_MULTIPLIER;
+    const accelerationDropoff = Math.max(0, 1 - Math.abs(motion.velocity) / 5000);
 
-    if (motion.velocity > MAX_WHEEL_VELOCITY) {
-      motion.velocity = MAX_WHEEL_VELOCITY;
-    } else if (motion.velocity < -MAX_WHEEL_VELOCITY) {
-      motion.velocity = -MAX_WHEEL_VELOCITY;
-    }
+    motion.velocity += accumulatedDelta * WHEEL_SENSITIVITY * accelerationDropoff;
 
     wheelQueue.length = 0;
   }
@@ -63,13 +57,13 @@ export function ScrollSystem(appRef: AppRef): AppSystemInstance {
       switch (event.state) {
         case GestureState.Initialize:
           motion.velocity = 0;
-          motion.previous = motion.current;
           app.dirtyFlags.set(AppDirtyFlags.GestureRunning);
           break;
 
         case GestureState.Update:
           motion.previous = motion.current;
           motion.current += event.delta;
+          motion.offset = motion.current;
           break;
 
         case GestureState.Finalize:

@@ -17,7 +17,6 @@ import {
 } from "./gesture";
 
 const STATIC_LINE_HEIGHT = 16;
-
 const STATIC_PAGE_HEIGHT = 800;
 
 export interface WheelGesture extends Component, Gesture {}
@@ -36,7 +35,7 @@ export function createWheelGesture(root: HTMLElement): WheelGesture {
     const gEvent = gestureEvent(
       GestureType.Wheel,
       GestureState.Update,
-      revert(normalizeDelta(event))
+      revert(normalizeDelta(event)),
     );
     wheeled.emit(gEvent);
 

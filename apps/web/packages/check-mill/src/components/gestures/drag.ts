@@ -15,9 +15,9 @@ import {
   gestureEvent,
 } from "./gesture";
 
-const DRAG_THRESHOLD = 5;
+const DRAG_THRESHOLD = 8;
 
-const HISTORY_MAX_AGE = 150;
+const HISTORY_MAX_AGE = 80;
 
 interface MoveSample {
   time: number;
@@ -46,7 +46,7 @@ export function createDragGesture(root: HTMLElement): DragGesture {
       DisposableStoreId.Static,
       dragged.clear,
       event(root, "pointerdown", onPointerDown),
-      event(root, "click", onMouseClick, { capture: true })
+      event(root, "click", onMouseClick, { capture: true }),
     );
 
     return () => disposables.flushAll();
@@ -91,13 +91,15 @@ export function createDragGesture(root: HTMLElement): DragGesture {
   }
 
   function onPointerUp(event: PointerEvent): void {
-    const velocity = computeSampledVelocity(event);
-    const gEvent = gestureEvent(GestureType.Drag, GestureState.Finalize, 10 * velocity);
+    const velocityPxMs = computeSampledVelocity(event);
+    const velocityPxS = velocityPxMs * 1000;
+    const gEvent = gestureEvent(GestureType.Drag, GestureState.Finalize, velocityPxS);
 
     (event.target as HTMLElement).releasePointerCapture(event.pointerId);
-
     dragged.emit(gEvent);
+
     moveHistory = [];
+    ownerDocument.body.classList.remove("is-dragging");
     disposables.flush(DisposableStoreId.Temporal);
   }
 
@@ -114,7 +116,7 @@ export function createDragGesture(root: HTMLElement): DragGesture {
       event(root, "pointerup", onPointerUp),
       event(root, "pointerout", onPointerUp),
       event(root, "pointerleave", onPointerUp),
-      event(root, "pointercancel", onPointerUp)
+      event(root, "pointercancel", onPointerUp),
     );
   }
 
@@ -124,21 +126,16 @@ export function createDragGesture(root: HTMLElement): DragGesture {
     const now = readTime(event);
     const horizon = now - HISTORY_MAX_AGE;
 
-    const validSamples = moveHistory.filter((s) => s.time > horizon);
+    const samples = moveHistory.filter((s) => s.time > horizon);
+    if (samples.length < 2) return 0;
 
-    if (validSamples.length < 2) return 0;
-
-    const first = validSamples[0];
-    const last = validSamples[validSamples.length - 1];
+    const first = samples[0];
+    const last = samples[samples.length - 1];
 
     const deltaDist = last.coord - first.coord;
     const deltaTime = last.time - first.time;
 
-    if (deltaTime === 0) return 0;
-
-    const velocity = deltaDist / deltaTime;
-
-    return Math.abs(velocity) > 0.1 ? velocity : 0;
+    return deltaTime > 0 ? deltaDist / deltaTime : 0;
   }
 
   function readPoint(event: PointerEvent): number {

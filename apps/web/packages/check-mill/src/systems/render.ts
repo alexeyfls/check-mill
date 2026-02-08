@@ -46,7 +46,11 @@ export function RenderSystem(appRef: AppRef): AppSystemInstance {
       recordQueue.push(...records);
     }
 
-    const dynamicBatchSize = Math.ceil(Math.abs(app.motion.velocity) / 5) + BATCH_SIZE;
+    const velocityMagnitude = Math.abs(app.motion.velocity);
+
+    const dynamicBatchSize =
+      velocityMagnitude > 20 ? Math.ceil(velocityMagnitude * 0.8) : BATCH_SIZE;
+
     const limit = Math.min(recordQueue.length, dynamicBatchSize);
 
     for (let i = 0; i < limit; i++) {
@@ -71,8 +75,13 @@ export function RenderSystem(appRef: AppRef): AppSystemInstance {
 
   function lerp(app: AppRef, params: RenderParams): void {
     const motion = app.motion;
-    const interpolated = motion.current * params.alpha + motion.previous * (1.0 - params.alpha);
-    motion.offset = interpolated;
+    const isDragging = app.dirtyFlags.is(AppDirtyFlags.GestureRunning);
+
+    if (isDragging) {
+      motion.offset = motion.current;
+    } else {
+      motion.offset = motion.previous + (motion.current - motion.previous) * params.alpha;
+    }
   }
 
   function processStyles(app: AppRef, _params: RenderParams): void {
