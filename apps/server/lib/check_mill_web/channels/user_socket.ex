@@ -1,7 +1,7 @@
 defmodule CheckMillWeb.UserSocket do
   use Phoenix.Socket
 
-  channel("room:*", CheckMillWeb.RoomChannel)
+  channel("grid:*", CheckMillWeb.GridChannel)
 
   @impl true
   def connect(_params, socket, _connect_info) do
