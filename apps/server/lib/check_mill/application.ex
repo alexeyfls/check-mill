@@ -6,7 +6,9 @@ defmodule CheckMill.Application do
     children = [
       {DNSCluster, query: Application.get_env(:check_mill, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: CheckMill.PubSub},
+      {CheckMill.RateLimit, [clean_period: :timer.minutes(1)]},
       CheckMill.GridStore,
+      CheckMill.SegmentBroadcaster,
       CheckMillWeb.Endpoint
     ]
 

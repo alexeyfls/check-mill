@@ -2,22 +2,22 @@ defmodule CheckMill.GridStore do
   use GenServer
   import Bitwise
 
-  alias CheckMill.GridConfig, as: C
+  alias CheckMill.GridConfig, as: Config
 
   @table :checkmill_grid
 
-  @grid_bits C.grid_bits()
-  @grid_mask C.grid_mask()
+  @grid_bits Config.grid_bits()
+  @grid_mask Config.grid_mask()
 
-  @seg_bits C.seg_bits()
-  @seg_bytes C.seg_bytes()
+  @seg_bits Config.seg_bits()
+  @seg_bytes Config.seg_bytes()
 
-  @chunk_bits C.chunk_bits()
-  @chunk_bytes C.chunk_bytes()
-  @chunk_shift C.chunk_shift()
+  @chunk_bits Config.chunk_bits()
+  @chunk_bytes Config.chunk_bytes()
+  @chunk_shift Config.chunk_shift()
   @chunk_mask @chunk_bits - 1
 
-  @num_chunks C.num_chunks()
+  @num_chunks Config.num_chunks()
 
   def start_link(_opts), do: GenServer.start_link(__MODULE__, :ok, name: __MODULE__)
 
@@ -56,14 +56,12 @@ defmodule CheckMill.GridStore do
     bits
   end
 
-  def global_snapshot_chunks(bytes_per_chunk)
-      when is_integer(bytes_per_chunk) and bytes_per_chunk > 0 do
-    full =
-      0..(@num_chunks - 1)
-      |> Enum.map(&get_chunk/1)
-      |> IO.iodata_to_binary()
-
-    chunk_binary(full, bytes_per_chunk)
+  def global_snapshot_chunks(bytes_per_chunk) do
+    0..(@num_chunks - 1)
+    |> Stream.map(&get_chunk/1)
+    |> Enum.into(<<>>)
+    |> :zlib.gzip()
+    |> chunk_binary(bytes_per_chunk)
   end
 
   @impl true
@@ -119,17 +117,15 @@ defmodule CheckMill.GridStore do
   end
 
   defp flip_bit(bin, bit_index) do
-    <<prefix::bitstring-size(bit_index), b::1, suffix::bitstring>> = bin
-    <<prefix::bitstring, bxor1(b)::1, suffix::bitstring>>
+    <<prefix::bitstring-size(bit_index), b::1, rest::bitstring>> = bin
+    new_bit = bxor(b, 1)
+    <<prefix::bitstring, new_bit::1, rest::bitstring>>
   end
 
   defp bit_value(bin, bit_index) do
     <<_::bitstring-size(bit_index), b::1, _::bitstring>> = bin
     b
   end
-
-  defp bxor1(0), do: 1
-  defp bxor1(1), do: 0
 
   defp chunk_binary(bin, bytes_per_chunk) do
     total = byte_size(bin)

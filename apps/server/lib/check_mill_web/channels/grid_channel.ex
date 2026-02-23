@@ -2,156 +2,172 @@ defmodule CheckMillWeb.GridChannel do
   use Phoenix.Channel
   import Bitwise
 
-  alias CheckMill.GridConfig, as: C
-  alias CheckMill.GridStore
+  alias CheckMill.{GridConfig, GridStore, SegmentBroadcaster, RateLimit}
 
-  @grid_bits C.grid_bits()
-  @grid_mask C.grid_mask()
-
-  @seg_bits C.seg_bits()
-  @seg_bytes C.seg_bytes()
-  @seg_shift C.seg_shift()
-
-  @global_chunk_bytes 16_384
-
-  @flush_ms 15
+  @cursor_flush_ms 64
 
   @impl true
   def join("grid:main", _payload, socket) do
-    socket =
-      socket
-      |> assign(:cursor, 0)
-      |> assign(:segments, MapSet.new())
-      |> assign(:pending_patches, [])
-      |> assign(:flush_ref, nil)
+    with :ok <- check_join_rate_limit(socket) do
+      initial_state = %{
+        cursor: 0,
+        segments: MapSet.new(),
+        cursor_ref: nil,
+        pending_cursor: nil
+      }
 
-    send(self(), :push_global_snapshot)
-    send(self(), {:set_cursor, 0})
+      socket =
+        socket
+        |> assign(initial_state)
+        |> schedule_cursor(0)
 
-    {:ok, socket}
+      send(self(), :begin_snapshot)
+      {:ok, socket}
+    else
+      {:error, :rate_limited} ->
+        {:error, %{reason: "rate_limit", message: "Too many connections."}}
+    end
   end
 
   @impl true
-  def handle_in("cursor", %{"pos" => pos}, socket) when is_integer(pos) do
-    pos = pos &&& @grid_mask
-    send(self(), {:set_cursor, pos})
+  def handle_in("cursor", %{"pos" => pos}, socket) when is_integer(pos),
+    do: {:noreply, schedule_cursor(socket, pos &&& GridConfig.grid_mask())}
+
+  @impl true
+  def handle_in("toggle", %{"idx" => idx}, socket) when is_integer(idx) do
+    with :ok <- check_action_limit(socket, 1) do
+      idx = idx &&& GridConfig.grid_mask()
+      val = GridStore.toggle(idx)
+      SegmentBroadcaster.enqueue(idx >>> GridConfig.seg_shift(), idx, val)
+      {:reply, {:ok, %{"idx" => idx, "val" => val}}, socket}
+    else
+      {:error, :rate_limited} -> {:reply, {:error, %{"reason" => "slow_down"}}, socket}
+    end
+  end
+
+  @impl true
+  def handle_in("toggle_many", %{"idxs" => idxs}, socket) when is_list(idxs) do
+    valid_idxs = Enum.take(idxs, GridConfig.max_toggles_per_msg())
+    cost = Enum.count(valid_idxs)
+
+    with :ok <- check_action_limit(socket, cost) do
+      patches = process_batch_toggles(valid_idxs)
+      {:reply, {:ok, %{"patches" => patches}}, socket}
+    else
+      {:error, :rate_limited} ->
+        {:reply, {:error, %{"reason" => "batch_limit"}}, socket}
+    end
+  end
+
+  @impl true
+  def handle_info(:begin_snapshot, socket) do
+    chunks = GridStore.global_snapshot_chunks(GridConfig.global_chunk_bytes())
+    push(socket, "global_snapshot_begin", %{"chunks" => length(chunks)})
+    send(self(), {:push_chunk, chunks, 0})
     {:noreply, socket}
   end
 
   @impl true
-  def handle_in("toggle", %{"idx" => idx}, socket) when is_integer(idx) do
-    idx = idx &&& @grid_mask
-    new_val = GridStore.toggle(idx)
-
-    seg_id = idx >>> @seg_shift
-    Phoenix.PubSub.broadcast(CheckMill.PubSub, seg_topic(seg_id), {:cell_patch, idx, new_val})
-
-    {:reply, {:ok, %{"idx" => idx, "val" => new_val}}, socket}
-  end
-
-  @impl true
-  def handle_info({:set_cursor, pos}, socket) do
-    wanted = wanted_segments(pos)
-    current = socket.assigns.segments
-
-    to_sub = MapSet.difference(wanted, current)
-    to_unsub = MapSet.difference(current, wanted)
-
-    Enum.each(to_unsub, fn seg_id ->
-      Phoenix.PubSub.unsubscribe(CheckMill.PubSub, seg_topic(seg_id))
-    end)
-
-    Enum.each(to_sub, fn seg_id ->
-      Phoenix.PubSub.subscribe(CheckMill.PubSub, seg_topic(seg_id))
-    end)
-
-    bits = GridStore.window_snapshot(pos)
-
-    if byte_size(bits) != @seg_bytes do
-      raise "window snapshot wrong size: expected #{@seg_bytes}, got #{byte_size(bits)}"
-    end
-
-    push(socket, "window_snapshot", %{
-      "pos" => pos,
-      "size" => @seg_bits,
-      "bits_b64" => Base.encode64(bits)
-    })
-
-    {:noreply, socket |> assign(:cursor, pos) |> assign(:segments, wanted)}
-  end
-
-  @impl true
-  def handle_info(:push_global_snapshot, socket) do
-    chunks = GridStore.global_snapshot_chunks(@global_chunk_bytes)
-    total = length(chunks)
-
-    push(socket, "global_snapshot_begin", %{
-      "total_bits" => @grid_bits,
-      "chunk_bytes" => @global_chunk_bytes,
-      "chunks" => total
-    })
-
-    chunks
-    |> Enum.with_index()
-    |> Enum.each(fn {chunk, i} ->
-      push(socket, "global_snapshot_chunk", %{
-        "i" => i,
-        "b64" => Base.encode64(chunk)
-      })
-    end)
-
+  def handle_info({:push_chunk, [], _i}, socket) do
     push(socket, "global_snapshot_done", %{})
     {:noreply, socket}
   end
 
   @impl true
-  def handle_info({:cell_patch, idx, val}, socket) do
-    {:noreply, queue_patch(socket, idx, val)}
+  def handle_info({:push_chunk, [chunk | rest], i}, socket) do
+    push(socket, "global_snapshot_chunk", %{"i" => i, "b64" => Base.encode64(chunk)})
+    Process.send_after(self(), {:push_chunk, rest, i + 1}, 1)
+    {:noreply, socket}
   end
 
   @impl true
-  def handle_info(:flush_patches, socket) do
-    patches = Enum.reverse(socket.assigns.pending_patches)
-
+  def handle_info(:flush_cursor, %{assigns: %{pending_cursor: pos}} = socket)
+      when not is_nil(pos) do
     socket =
       socket
-      |> assign(:pending_patches, [])
-      |> assign(:flush_ref, nil)
-
-    if patches != [] do
-      push(socket, "patch_batch", %{"patches" => patches})
-    end
+      |> assign(cursor_ref: nil, pending_cursor: nil)
+      |> apply_cursor(pos)
 
     {:noreply, socket}
   end
 
-  defp queue_patch(socket, idx, val) do
-    socket =
-      update_in(socket.assigns.pending_patches, fn list ->
-        [[idx, val] | list]
-      end)
+  @impl true
+  def handle_info(:flush_cursor, socket), do: {:noreply, assign(socket, :cursor_ref, nil)}
 
-    case socket.assigns.flush_ref do
-      nil ->
-        ref = Process.send_after(self(), :flush_patches, @flush_ms)
-        assign(socket, :flush_ref, ref)
+  @impl true
+  def handle_info({:patch_batch, seq, patches}, socket) do
+    push(socket, "patch_batch", %{"seq" => seq, "patches" => patches})
+    {:noreply, socket}
+  end
 
-      _ ->
-        socket
+  defp process_batch_toggles(idxs) do
+    for idx <- idxs do
+      idx = idx &&& GridConfig.grid_mask()
+      val = GridStore.toggle(idx)
+      SegmentBroadcaster.enqueue(idx >>> GridConfig.seg_shift(), idx, val)
+      [idx, val]
     end
+  end
+
+  defp apply_cursor(socket, pos) do
+    wanted = wanted_segments(pos)
+
+    socket
+    |> update_subscriptions(socket.assigns.segments, wanted)
+    |> assign(cursor: pos, segments: wanted)
+    |> tap(&push_window_snapshot(&1, pos))
   end
 
   defp wanted_segments(pos) do
-    start_seg = pos >>> @seg_shift
-    end_pos = pos + (@seg_bits - 1) &&& @grid_mask
-    end_seg = end_pos >>> @seg_shift
+    [pos, pos + GridConfig.seg_bits() - 1 &&& GridConfig.grid_mask()]
+    |> Enum.map(&(&1 >>> GridConfig.seg_shift()))
+    |> MapSet.new()
+  end
 
-    if start_seg == end_seg do
-      MapSet.new([start_seg])
-    else
-      MapSet.new([start_seg, end_seg])
+  defp check_join_rate_limit(socket) do
+    ip = socket.assigns[:remote_ip] || "unknown"
+
+    case RateLimit.hit("join:#{ip}", GridConfig.join_limit_ms(), GridConfig.join_limit_count()) do
+      {:allow, _} -> :ok
+      {:deny, _} -> {:error, :rate_limited}
     end
   end
 
-  defp seg_topic(seg_id), do: "grid:seg:#{seg_id}"
+  defp check_action_limit(socket, cost) do
+    key = "act:#{inspect(socket.transport_pid)}"
+
+    case RateLimit.hit(key, GridConfig.toggle_limit_ms(), GridConfig.toggle_limit_count(), cost) do
+      {:allow, _} -> :ok
+      {:deny, _} -> {:error, :rate_limited}
+    end
+  end
+
+  defp update_subscriptions(socket, current, wanted) do
+    MapSet.difference(current, wanted) |> Enum.each(&unsubscribe/1)
+    MapSet.difference(wanted, current) |> Enum.each(&subscribe/1)
+    socket
+  end
+
+  defp subscribe(id), do: Phoenix.PubSub.subscribe(CheckMill.PubSub, "grid:seg:#{id}")
+
+  defp unsubscribe(id), do: Phoenix.PubSub.unsubscribe(CheckMill.PubSub, "grid:seg:#{id}")
+
+  defp schedule_cursor(%{assigns: %{cursor: pos}} = socket, pos), do: socket
+
+  defp schedule_cursor(%{assigns: %{cursor_ref: ref}} = socket, pos) when not is_nil(ref),
+    do: assign(socket, :pending_cursor, pos)
+
+  defp schedule_cursor(socket, pos) do
+    assign(socket, %{
+      pending_cursor: pos,
+      cursor_ref: Process.send_after(self(), :flush_cursor, @cursor_flush_ms)
+    })
+  end
+
+  defp push_window_snapshot(socket, pos) do
+    push(socket, "window_snapshot", %{
+      "pos" => pos,
+      "bits_b64" => Base.encode64(GridStore.window_snapshot(pos))
+    })
+  end
 end
