@@ -8,6 +8,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.0.14",
+    "@types/phoenix": "^1.6.7",
     "typescript": "~5.7.2",
     "vite": "^7.1.0",
     "vite-plugin-dts": "^4.5.4"
@@ -28,5 +29,8 @@
   ],
   "sideEffects": [
     "dist/core.css"
-  ]
+  ],
+  "dependencies": {
+    "phoenix": "^1.8.4"
+  }
 }
