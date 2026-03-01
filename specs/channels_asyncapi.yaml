@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: CheckMill Grid API
-  version: 1.0.0
+  version: 0.1.0
   description: Real-time grid synchronization API via Phoenix Channels.
 
 operations:
