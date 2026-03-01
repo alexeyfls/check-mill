@@ -1,0 +1,137 @@
+asyncapi: 3.1.0
+info:
+  title: CheckMill Grid API
+  version: 1.0.0
+  description: Real-time grid synchronization API via Phoenix Channels.
+
+operations:
+  sendCursor:
+    action: send
+    channel:
+      $ref: "#/channels/gridMain"
+    messages:
+      - $ref: "#/components/messages/CursorUpdate"
+
+  sendToggle:
+    action: send
+    channel:
+      $ref: "#/channels/gridMain"
+    messages:
+      - $ref: "#/components/messages/ToggleRequest"
+
+  sendToggleMany:
+    action: send
+    channel:
+      $ref: "#/channels/gridMain"
+    messages:
+      - $ref: "#/components/messages/ToggleManyRequest"
+
+  receiveSnapshot:
+    action: receive
+    channel:
+      $ref: "#/channels/gridMain"
+    messages:
+      - $ref: "#/components/messages/GlobalSnapshotBegin"
+      - $ref: "#/components/messages/GlobalSnapshotChunk"
+      - $ref: "#/components/messages/GlobalSnapshotDone"
+      - $ref: "#/components/messages/WindowSnapshot"
+
+  receivePatches:
+    action: receive
+    channel:
+      $ref: "#/channels/gridMain"
+    messages:
+      - $ref: "#/components/messages/PatchBatch"
+
+channels:
+  gridMain:
+    address: "grid:main"
+    title: Main Grid Channel
+    messages:
+      cursor:
+        $ref: "#/components/messages/CursorUpdate"
+      toggle:
+        $ref: "#/components/messages/ToggleRequest"
+      toggle_many:
+        $ref: "#/components/messages/ToggleManyRequest"
+      global_snapshot_begin:
+        $ref: "#/components/messages/GlobalSnapshotBegin"
+      global_snapshot_chunk:
+        $ref: "#/components/messages/GlobalSnapshotChunk"
+      global_snapshot_done:
+        $ref: "#/components/messages/GlobalSnapshotDone"
+      window_snapshot:
+        $ref: "#/components/messages/WindowSnapshot"
+      patch_batch:
+        $ref: "#/components/messages/PatchBatch"
+
+components:
+  messages:
+    CursorUpdate:
+      name: cursor
+      payload:
+        type: object
+        properties:
+          pos: { type: integer, description: "Bitwise masked position index." }
+        required: [pos]
+
+    ToggleRequest:
+      name: toggle
+      payload:
+        type: object
+        properties:
+          idx: { type: integer }
+        required: [idx]
+
+    ToggleManyRequest:
+      name: toggle_many
+      payload:
+        type: object
+        properties:
+          idxs:
+            type: array
+            items: { type: integer }
+        required: [idxs]
+
+    GlobalSnapshotBegin:
+      name: global_snapshot_begin
+      payload:
+        type: object
+        properties:
+          chunks:
+            { type: integer, description: "Total number of chunks to expect." }
+
+    GlobalSnapshotChunk:
+      name: global_snapshot_chunk
+      payload:
+        type: object
+        properties:
+          i: { type: integer, description: "Chunk sequence index." }
+          b64: { type: string, description: "Base64 encoded binary data." }
+
+    GlobalSnapshotDone:
+      name: global_snapshot_done
+      payload: { type: object }
+
+    WindowSnapshot:
+      name: window_snapshot
+      payload:
+        type: object
+        properties:
+          pos: { type: integer }
+          bits_b64: { type: string }
+
+    PatchBatch:
+      name: patch_batch
+      payload:
+        type: object
+        properties:
+          seq: { type: integer }
+          patches:
+            type: array
+            items:
+              type: array
+              minItems: 2
+              maxItems: 2
+              items: { type: integer }
+              description: "[index, value] pair"
