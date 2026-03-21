@@ -1,7 +1,7 @@
 import type { AppRef, AppSystemInstance } from "../components";
 import { Phases, Dataset } from "../components";
 import type { Disposable, LoopParams } from "../core";
-import { DisposableStoreId, createDisposableStore, event } from "../core";
+import { DisposableStoreId, createDisposableStore, event, throttle } from "../core";
 
 export function ToggleSystem(appRef: AppRef): AppSystemInstance {
   const toggleQueue: number[] = [];
@@ -21,8 +21,14 @@ export function ToggleSystem(appRef: AppRef): AppSystemInstance {
   function processToggles(app: AppRef, _params: LoopParams): void {
     if (toggleQueue.length === 0) return;
 
-    for (const toggle of toggleQueue) {
+    const merged = mergeToggles(toggleQueue);
+
+    for (const toggle of merged) {
       app.board.flip(toggle);
+    }
+
+    if (merged.length) {
+      merged.length > 1 ? app.gateway.sendToggleMany(merged) : app.gateway.sendToggle(merged[0]);
     }
 
     toggleQueue.length = 0;
@@ -50,10 +56,24 @@ export function ToggleSystem(appRef: AppRef): AppSystemInstance {
     }
   }
 
+  function mergeToggles(toggles: number[]): number[] {
+    const active = new Set<number>();
+
+    for (const toggle of toggles) {
+      if (active.has(toggle)) {
+        active.delete(toggle);
+      } else {
+        active.add(toggle);
+      }
+    }
+
+    return [...active];
+  }
+
   return {
     init,
     logic: {
-      [Phases.IO]: [processToggles],
+      [Phases.IO]: [throttle(processToggles, 300)],
     },
   };
 }

@@ -4,6 +4,7 @@ export * from "./dom-factories";
 export * from "./gestures";
 export * from "./layout";
 export * from "./looper";
+export * from "./gateway";
 export * from "./scroll-motion";
 export * from "./slides";
 export * from "./slides-renderer";

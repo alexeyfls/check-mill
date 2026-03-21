@@ -10,14 +10,12 @@ import {
 import type { Component } from "./component";
 
 export type PatchBatch = { seq: number; patches: [number, number][] };
-export type CursorUpdate = { pos: number; clientId: string };
 export type GlobalSnapshotBegin = { chunks: number };
 export type GlobalSnapshotChunk = { i: number; b64: string };
 export type WindowSnapshot = { pos: number; bits_b64: string };
 
 export interface GatewayType extends Component {
   readonly patchBatch: EventReader<PatchBatch>;
-  readonly remoteCursor: EventReader<CursorUpdate>;
   readonly snapshotBegin: EventReader<GlobalSnapshotBegin>;
   readonly snapshotChunk: EventReader<GlobalSnapshotChunk>;
   readonly snapshotDone: EventReader<void>;
@@ -31,8 +29,6 @@ export interface GatewayType extends Component {
 export function createGateway(url: string): GatewayType {
   const patchBatch = new TypedEvent<PatchBatch>();
 
-  const remoteCursor = new TypedEvent<CursorUpdate>();
-
   const snapshotBegin = new TypedEvent<GlobalSnapshotBegin>();
 
   const snapshotChunk = new TypedEvent<GlobalSnapshotChunk>();
@@ -43,29 +39,24 @@ export function createGateway(url: string): GatewayType {
 
   let channel: Channel | null = null;
 
-  const events = [
-    patchBatch,
-    remoteCursor,
-    snapshotBegin,
-    snapshotChunk,
-    snapshotDone,
-    windowSnapshot,
-  ] as const;
+  const events = [patchBatch, snapshotBegin, snapshotChunk, snapshotDone, windowSnapshot] as const;
 
   function init(): Disposable {
     const socket = new Socket(url, {});
     socket.connect();
 
-    channel = socket.channel("grid:main");
+    channel = socket.channel("grid:main", {});
 
     channel.on("patch_batch", patchBatch.emit);
-    channel.on("cursor", remoteCursor.emit);
     channel.on("global_snapshot_begin", snapshotBegin.emit);
     channel.on("global_snapshot_chunk", snapshotChunk.emit);
     channel.on("global_snapshot_done", snapshotDone.emit);
     channel.on("window_snapshot", windowSnapshot.emit);
 
-    channel.join();
+    channel
+      .join()
+      .receive("ok", (resp) => console.log("Joined successfully", resp))
+      .receive("error", (resp) => console.log("Unable to join", resp));
 
     const disposables = createDisposableStore();
     disposables.push(
@@ -96,7 +87,6 @@ export function createGateway(url: string): GatewayType {
   return {
     init,
     patchBatch,
-    remoteCursor,
     snapshotBegin,
     snapshotChunk,
     snapshotDone,

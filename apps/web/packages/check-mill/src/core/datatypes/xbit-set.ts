@@ -175,6 +175,24 @@ export class UintXBitSet {
   }
 
   /**
+   * Sets or clears the bit at the specified overall index.
+   *
+   * @param index - The overall bit index to update.
+   * @param value - True to set the bit; false to unset it.
+   */
+  public setAt(index: number, value: boolean): void {
+    const elementIndex = index >>> this.shift;
+    const bitPosition = index & ((1 << this.shift) - 1);
+    const mask = 1 << bitPosition;
+
+    if (value) {
+      this.bytes[elementIndex] |= mask;
+    } else {
+      this.bytes[elementIndex] &= ~mask;
+    }
+  }
+
+  /**
    * Sets the underlying array “word” at the specified index to the given value.
    *
    * @param offset - The index in the underlying array.
@@ -217,6 +235,57 @@ export class UintXBitSet {
   }
 
   /**
+   * Patches this bitset starting at the specified bit offset using bits decoded
+   * from a base64 string.
+   *
+   * If the patch exceeds the end of the bitset, the remaining bits are applied
+   * starting from the beginning of the bitset.
+   *
+   * @param startBit - Bit index in this bitset where patching starts.
+   * @param base64String - Base64 string containing the patch payload.
+   * @param bitLength - Optional number of bits to apply from the payload.
+   *                    Defaults to all bits in the decoded payload.
+   */
+  public patchFromBase64(startBit: number, base64String: string, bitLength?: number): void {
+    const binaryString = atob(base64String);
+    const rawBytes = new Uint8Array(binaryString.length);
+
+    for (let i = 0; i < binaryString.length; i++) {
+      rawBytes[i] = binaryString.charCodeAt(i);
+    }
+
+    const availableBits = rawBytes.length * 8;
+    const patchBits = bitLength ?? availableBits;
+
+    if (startBit < 0) {
+      throw new Error("startBit must be non-negative");
+    }
+
+    if (patchBits < 0) {
+      throw new Error("bitLength must be non-negative");
+    }
+
+    if (patchBits > availableBits) {
+      throw new Error("bitLength exceeds decoded payload size");
+    }
+
+    if (this.totalBits === 0) {
+      throw new Error("Cannot patch an empty bitset");
+    }
+
+    const normalizedStartBit = startBit % this.totalBits;
+
+    for (let i = 0; i < patchBits; i++) {
+      const sourceByteIndex = i >>> 3;
+      const sourceBitPosition = i & 7;
+      const value = (rawBytes[sourceByteIndex] & (1 << sourceBitPosition)) !== 0;
+
+      const targetBitIndex = (normalizedStartBit + i) % this.totalBits;
+      this.setAt(targetBitIndex, value);
+    }
+  }
+
+  /**
    * Returns a paginated iterator over the bits in the set.
    * This allows for efficient iteration over a specific chunk of the bitset without
    * creating a large intermediate array.
@@ -232,6 +301,25 @@ export class UintXBitSet {
     for (let i = pageOffset; i < endBit; i++) {
       yield this.has(i);
     }
+  }
+
+  /**
+   * Replaces the entire content of this bitset with raw bytes.
+   *
+   * @param bytes - Raw bytes representing the underlying typed array data.
+   */
+  public copyFromBytes(bytes: Uint8Array): void {
+    const expectedByteLength = this.bytes.byteLength;
+
+    if (bytes.byteLength !== expectedByteLength) {
+      throw new Error(
+        `Bitset size mismatch: expected ${expectedByteLength} bytes (${this.totalBits} bits), got ${bytes.byteLength} bytes`,
+      );
+    }
+
+    const target = new Uint8Array(this.bytes.buffer, this.bytes.byteOffset, this.bytes.byteLength);
+
+    target.set(bytes);
   }
 }
 
@@ -267,7 +355,7 @@ function uintXArrayConstructor(width: XBits): UintXArrayConstructor {
  *
  * @returns Base64 encoded string representing the array.
  */
-function base64String(array: UintXArray): string {
+export function base64String(array: UintXArray): string {
   const rawBytes = new Uint8Array(array.buffer, array.byteOffset, array.byteLength);
 
   let binary = "";
@@ -276,4 +364,58 @@ function base64String(array: UintXArray): string {
   }
 
   return btoa(binary);
+}
+
+/**
+ * Converts a base64-encoded string into a Uint8Array.
+ *
+ * @param base64 - The base64-encoded string to decode.
+ *
+ * @returns A Uint8Array containing the decoded bytes.
+ */
+export function base64ToUint8Array(base64: string): Uint8Array {
+  const binaryString = atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+
+  return bytes;
+}
+
+/**
+ * Decompresses a gzip-compressed byte array in the browser.
+ *
+ * @param bytes - Gzip-compressed bytes to decompress.
+ *
+ * @returns A Uint8Array containing the decompressed bytes.
+ */
+export async function gunzipInBrowser(bytes: Uint8Array): Promise<Uint8Array> {
+  const ds = new DecompressionStream("gzip");
+  const decompressedStream = new Blob([Uint8Array.from(bytes)]).stream().pipeThrough(ds);
+  const arrayBuffer = await new Response(decompressedStream).arrayBuffer();
+
+  return new Uint8Array(arrayBuffer);
+}
+
+/**
+ * Concatenates multiple Uint8Array chunks into a single Uint8Array.
+ *
+ * @param chunks - The byte chunks to concatenate.
+ *
+ * @returns A Uint8Array containing all supplied chunks in order.
+ */
+export function concatUint8Arrays(chunks: Uint8Array[]): Uint8Array {
+  const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  const result = new Uint8Array(totalLength);
+
+  let offset = 0;
+
+  for (const chunk of chunks) {
+    result.set(chunk, offset);
+    offset += chunk.length;
+  }
+
+  return result;
 }

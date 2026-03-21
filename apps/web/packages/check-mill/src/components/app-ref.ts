@@ -5,6 +5,7 @@ import type { LayoutProperties } from "./layout";
 import { createLayout } from "./layout";
 import type { LoopState } from "./looper";
 import { LoopPhase } from "./looper";
+import { createGateway, GatewayType } from "./gateway";
 import type { MotionType } from "./scroll-motion";
 import { createMotion } from "./scroll-motion";
 import type { SlidesCollectionType } from "./slides";
@@ -36,6 +37,7 @@ export interface AppRef {
   motion: MotionType;
   slides: SlidesCollectionType;
   loopState: LoopState;
+  gateway: GatewayType;
 }
 
 export type AppProcessoFunction = ProcessorFunction<AppRef, LoopParams>;
@@ -133,12 +135,13 @@ export function createAppRef(root: HTMLElement): AppRef {
   };
 
   return {
-    board: UintXBitSet.empty(16, 65_535),
+    board: UintXBitSet.empty(16, 65_536),
     dirtyFlags: createFlagManager(AppDirtyFlags.None),
     layout,
     loopState,
     motion: createMotion(),
     owner,
     slides,
+    gateway: createGateway("http://localhost:4000/view"),
   };
 }
