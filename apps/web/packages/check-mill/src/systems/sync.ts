@@ -17,7 +17,6 @@ import {
 } from "../core";
 
 export function SyncSystem(appRef: AppRef): AppSystemInstance {
-  let expectedChunks = 0;
   let chunkBuffer: Uint8Array[] = [];
 
   const patcheQueue: PatchBatch["patches"] = [];
@@ -39,8 +38,7 @@ export function SyncSystem(appRef: AppRef): AppSystemInstance {
     return disposables.flushAll;
   }
 
-  function onSnapshotStart(payload: GlobalSnapshotBegin): void {
-    expectedChunks = payload.chunks;
+  function onSnapshotStart(_payload: GlobalSnapshotBegin): void {
     chunkBuffer.length = 0;
   }
 
@@ -50,8 +48,6 @@ export function SyncSystem(appRef: AppRef): AppSystemInstance {
 
   function onSnapshotComplete(): void {
     hydrateBoard(chunkBuffer);
-
-    expectedChunks = 0;
     chunkBuffer.length = 0;
   }
 
@@ -75,7 +71,7 @@ export function SyncSystem(appRef: AppRef): AppSystemInstance {
 
   function synchronizeViews(app: AppRef): void {
     for (const { pos, bits_b64 } of windowSnapshotQueue) {
-      app.board.patchFromBase64(pos, bits_b64);
+      app.board.patchFromBase64(pos, bits_b64, { bitOrder: "msb0" });
     }
 
     windowSnapshotQueue.length = 0;
@@ -83,15 +79,17 @@ export function SyncSystem(appRef: AppRef): AppSystemInstance {
 
   async function hydrateBoard(chunks: Uint8Array[]): Promise<void> {
     const gzBytes = concatUint8Arrays(chunks);
-    const rawBytes = await gunzipInBrowser(gzBytes);
 
-    appRef.board.copyFromBytes(rawBytes);
+    try {
+      const rawBytes = await gunzipInBrowser(gzBytes);
+      appRef.board.copyFromBytesWithOrder(rawBytes, { bitOrder: "msb0" });
+    } catch (error) {}
   }
 
   return {
     init,
     logic: {
-      [Phases.IO]: [commitPatchQueue, synchronizeViews],
+      [Phases.IO]: [commitPatchQueue, synchronizeViews, handleCursorUpdate],
     },
   };
 }

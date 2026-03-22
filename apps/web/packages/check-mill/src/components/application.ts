@@ -1,15 +1,22 @@
-import type { BitwiseFlags, Disposable, ProcessorFunction, LoopParams } from "../core";
-import { assert, createFlagManager, UintXBitSet } from "../core";
+import type {
+  BitwiseFlags,
+  Disposable,
+  ProcessorFunction,
+  LoopParams,
+  RenderLoopType,
+} from "../core";
+import { assert, createFlagManager, BitSet, noop } from "../core";
 import { SlideFactory } from "./dom-factories";
 import type { LayoutProperties } from "./layout";
 import { createLayout } from "./layout";
 import type { LoopState } from "./looper";
-import { LoopPhase } from "./looper";
+import { initialLoopState } from "./looper";
 import { createGateway, GatewayType } from "./gateway";
 import type { MotionType } from "./scroll-motion";
 import { createMotion } from "./scroll-motion";
 import type { SlidesCollectionType } from "./slides";
 import { createSlides } from "./slides";
+import { createViewport, ViewportType } from "./viewport";
 
 // prettier-ignore
 export const enum AppDirtyFlags {
@@ -25,20 +32,36 @@ export const enum Phases {
   Cleanup,
 }
 
-export interface AppRef {
-  owner: {
+/**
+ * ViewLayout represents the ephemeral, layout-dependent state.
+ */
+export type ViewLayout = {
+  readonly layout: LayoutProperties;
+  readonly slides: SlidesCollectionType;
+  readonly viewport: ViewportType;
+  readonly loopState: LoopState;
+  readonly motion: MotionType;
+  readonly dirtyFlags: BitwiseFlags;
+};
+
+/**
+ * AppRef is the persistent state container.
+ */
+export type AppRef = {
+  readonly owner: {
     window: Window;
     document: Document;
     root: HTMLElement;
   };
-  board: UintXBitSet;
-  dirtyFlags: BitwiseFlags;
-  layout: Readonly<LayoutProperties>;
-  motion: MotionType;
-  slides: SlidesCollectionType;
-  loopState: LoopState;
-  gateway: GatewayType;
-}
+
+  readonly board: BitSet;
+  readonly gateway: GatewayType;
+
+  view: ViewLayout;
+  renderLoop: RenderLoopType | null;
+  readExecutor: AppProcessoFunction;
+  writeExecutor: AppProcessoFunction;
+};
 
 export type AppProcessoFunction = ProcessorFunction<AppRef, LoopParams>;
 
@@ -89,59 +112,58 @@ export function mergePipelines(pipelines: PhasePipeline[]): PhasePipeline {
   return merged;
 }
 
+/**
+ * One-time setup for the persistent application state.
+ */
 export function createAppRef(root: HTMLElement): AppRef {
   const document = root.ownerDocument;
   const window = document.defaultView;
   assert(window, "Window object not available for provided root element");
 
+  return {
+    owner: {
+      window,
+      document,
+      root,
+    },
+    board: BitSet.fromBitCount(1_048_576),
+    gateway: createGateway("http://localhost:4000/view"),
+    view: createViewLayout(root),
+    renderLoop: null,
+    readExecutor: noop,
+    writeExecutor: noop,
+  };
+}
+
+/**
+ * Creates the ephemeral, layout-dependent state.
+ */
+export function createViewLayout(root: HTMLElement): ViewLayout {
+  const document = root.ownerDocument;
   const rect = root.getBoundingClientRect();
 
   const layout = createLayout({
     checkboxSize: 24,
     gridSpacing: 8,
-    viewportSize: {
-      width: rect.width,
-      height: rect.height,
-    },
+    viewportSize: { width: rect.width, height: rect.height },
     loopBufferSizeRatio: 3,
-    containerPadding: {
-      vertical: 12,
-      horizontal: 12,
-    },
+    containerPadding: { vertical: 12, horizontal: 12 },
     slideSpacing: 8,
     slideMaxWidth: 1024,
     slideMaxHeightRatio: 0.25,
     slideMinHeight: 100,
-    slidePadding: {
-      vertical: 12,
-      horizontal: 12,
-    },
+    slidePadding: { vertical: 12, horizontal: 12 },
     minGridDimension: 2,
     maxGridDimension: 128,
     targetDivisor: 65_535 * 16,
   });
 
-  const slides = createSlides(new SlideFactory(document), layout.slideCount.total);
-
-  const owner = {
-    window,
-    document,
-    root,
-  };
-
-  const loopState = {
-    iteration: 0,
-    phase: LoopPhase.Neutral,
-  };
-
   return {
-    board: UintXBitSet.empty(16, 65_536),
-    dirtyFlags: createFlagManager(AppDirtyFlags.None),
     layout,
-    loopState,
+    slides: createSlides(new SlideFactory(document), layout.slideCount.total),
+    viewport: createViewport(root),
+    loopState: initialLoopState(),
     motion: createMotion(),
-    owner,
-    slides,
-    gateway: createGateway("http://localhost:4000/view"),
+    dirtyFlags: createFlagManager(AppDirtyFlags.None),
   };
 }

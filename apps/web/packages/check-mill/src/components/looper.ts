@@ -1,5 +1,5 @@
 import { wrap } from "../core";
-import type { AppRef } from "./app-ref";
+import type { AppRef } from "./application";
 import { moveTo } from "./scroll-motion";
 
 export enum LoopPhase {
@@ -13,13 +13,17 @@ export interface LoopState {
   phase: LoopPhase;
 }
 
+export function initialLoopState(): LoopState {
+  return { iteration: 0, phase: LoopPhase.Neutral };
+}
+
 export function loop(appRef: AppRef): void {
   const didWrap = maintainScrollBounds(appRef);
   updateVirtualConfiguration(appRef, didWrap);
 }
 
 function maintainScrollBounds(appRef: AppRef): boolean {
-  const { motion, layout, loopState } = appRef;
+  const { motion, layout, loopState } = appRef.view;
   const { contentArea, slideSpacing } = layout;
 
   const topBound = 0;
@@ -44,7 +48,7 @@ function maintainScrollBounds(appRef: AppRef): boolean {
 }
 
 function updateVirtualConfiguration(appRef: AppRef, forceUpdate: boolean): void {
-  const { loopState } = appRef;
+  const { loopState } = appRef.view;
   const currentPhase = calculateLoopPhase(appRef);
 
   if (currentPhase === loopState.phase && !forceUpdate) {
@@ -56,7 +60,7 @@ function updateVirtualConfiguration(appRef: AppRef, forceUpdate: boolean): void 
 }
 
 function calculateLoopPhase(appRef: AppRef): LoopPhase {
-  const { layout, motion } = appRef;
+  const { layout, motion } = appRef.view;
 
   const midPoint = layout.contentArea.height / 2;
 
@@ -64,7 +68,7 @@ function calculateLoopPhase(appRef: AppRef): LoopPhase {
 }
 
 function syncSlidesState(appRef: AppRef, phase: LoopPhase): void {
-  const { slides, layout, loopState } = appRef;
+  const { slides, layout, loopState } = appRef.view;
   const { visible, total } = layout.slideCount;
   const { totalPages } = layout.pagination;
 

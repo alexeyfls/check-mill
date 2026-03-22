@@ -15,7 +15,7 @@ export function UpdateSystem(_appRef: AppRef): AppSystemInstance {
 }
 
 function processInertia(app: AppRef, params: LoopParams): void {
-  const motion = app.motion;
+  const motion = app.view.motion;
 
   motion.velocity *= Math.pow(FRICTION, params.dt / 16.67);
 

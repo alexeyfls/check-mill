@@ -1,4 +1,4 @@
-import { px, type UintXBitSet } from "../core";
+import { px, BitSet } from "../core";
 import { Dataset } from "./constants";
 import { CheckboxFactory } from "./dom-factories";
 import { type LayoutProperties } from "./layout";
@@ -8,9 +8,9 @@ import { createTranslationController } from "./translate";
 
 export interface SlidesRendererType {
   mountContainers(slides: SlidesCollectionType): void;
-  hydrate(slide: Slide, board: UintXBitSet): void;
+  hydrate(slide: Slide, board: BitSet): void;
   dehydrate(slide: Slide): void;
-  updateState(slide: Slide, board: UintXBitSet): void;
+  updateState(slide: Slide, board: BitSet): void;
   syncPosition(slides: SlidesCollectionType, motion: MotionType): void;
 }
 
@@ -59,7 +59,7 @@ export function createSlidesRenderer(
     root.replaceChildren(stage);
   }
 
-  function hydrate(slide: Slide, board: UintXBitSet): void {
+  function hydrate(slide: Slide, board: BitSet): void {
     const { nativeElement, pageIndex } = slide;
     const container = nativeElement.firstElementChild as HTMLElement;
 
@@ -96,7 +96,7 @@ export function createSlidesRenderer(
     slide.nativeElement.removeAttribute(`data-${Dataset.SLIDE_INDEX}`);
   }
 
-  function updateState(slide: Slide, board: UintXBitSet): void {
+  function updateState(slide: Slide, board: BitSet): void {
     const container = slide.nativeElement.firstElementChild as HTMLElement;
     const template = activeTemplates.get(container);
 
@@ -105,7 +105,7 @@ export function createSlidesRenderer(
     }
   }
 
-  function syncInputs(inputs: HTMLInputElement[], pageIndex: number, board: UintXBitSet): void {
+  function syncInputs(inputs: HTMLInputElement[], pageIndex: number, board: BitSet): void {
     const offset = pageIndex * itemsPerSlide;
     const len = inputs.length;
 

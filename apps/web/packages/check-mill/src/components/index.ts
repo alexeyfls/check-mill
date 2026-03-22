@@ -1,4 +1,4 @@
-export * from "./app-ref";
+export * from "./application";
 export * from "./component";
 export * from "./dom-factories";
 export * from "./gestures";

@@ -2,6 +2,7 @@ import type {
   AppRef,
   AppSystemInstance,
   SlidesRendererType,
+  VisibilityRecord,
   VisibilityTrackerType,
 } from "../components";
 import {
@@ -20,18 +21,18 @@ export function RenderSystem(appRef: AppRef): AppSystemInstance {
   let visibilityTracker: VisibilityTrackerType;
 
   const BATCH_SIZE = 2;
-  const recordQueue: ReturnType<VisibilityTrackerType["takeRecords"]> = [];
+  const recordQueue: VisibilityRecord[] = [];
 
   function init(): Disposable {
     visibilityTracker = createVisibilityTracker(
       appRef.owner.root,
-      appRef.slides.map((s) => s.nativeElement),
+      appRef.view.slides.map((s) => s.nativeElement),
     );
 
-    renderer = createSlidesRenderer(appRef.owner.document, appRef.owner.root, appRef.layout);
-    renderer.mountContainers(appRef.slides);
+    renderer = createSlidesRenderer(appRef.owner.document, appRef.owner.root, appRef.view.layout);
+    renderer.mountContainers(appRef.view.slides);
 
-    writeVariables(appRef.owner.root, appRef.layout);
+    writeVariables(appRef.owner.root, appRef.view.layout);
 
     const disposables = createDisposableStore();
     disposables.push(DisposableStoreId.Static, visibilityTracker.init());
@@ -45,7 +46,7 @@ export function RenderSystem(appRef: AppRef): AppSystemInstance {
       recordQueue.push(...records);
     }
 
-    const velocityMagnitude = Math.abs(app.motion.velocity);
+    const velocityMagnitude = Math.abs(app.view.motion.velocity);
 
     const dynamicBatchSize =
       velocityMagnitude > 20 ? Math.ceil(velocityMagnitude * 0.8) : BATCH_SIZE;
@@ -58,23 +59,23 @@ export function RenderSystem(appRef: AppRef): AppSystemInstance {
 
       switch (record.change) {
         case VisibilityChange.Exited:
-          renderer.dehydrate(app.slides[record.index]);
+          renderer.dehydrate(app.view.slides[record.index]);
           break;
 
         case VisibilityChange.Entered:
-          renderer.hydrate(app.slides[record.index], app.board);
+          renderer.hydrate(app.view.slides[record.index], app.board);
           break;
       }
     }
   }
 
   function syncPosition(app: AppRef, _params: LoopParams): void {
-    renderer.syncPosition(app.slides, app.motion);
+    renderer.syncPosition(app.view.slides, app.view.motion);
   }
 
   function lerp(app: AppRef, params: LoopParams): void {
-    const motion = app.motion;
-    const isDragging = app.dirtyFlags.is(AppDirtyFlags.GestureRunning);
+    const motion = app.view.motion;
+    const isDragging = app.view.dirtyFlags.is(AppDirtyFlags.GestureRunning);
 
     if (isDragging) {
       motion.offset = motion.current;
@@ -85,7 +86,7 @@ export function RenderSystem(appRef: AppRef): AppSystemInstance {
 
   function processStyles(app: AppRef, _params: LoopParams): void {
     const classList = app.owner.root.classList;
-    const isGestureRunning = app.dirtyFlags.is(AppDirtyFlags.GestureRunning);
+    const isGestureRunning = app.view.dirtyFlags.is(AppDirtyFlags.GestureRunning);
     const containsClass = classList.contains("is-scrolling");
 
     if (isGestureRunning) {

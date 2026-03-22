@@ -34,7 +34,7 @@ export function ScrollSystem(appRef: AppRef): AppSystemInstance {
   function processWheelScroll(app: AppRef, _params: LoopParams): void {
     if (wheelQueue.length === 0) return;
 
-    const motion = app.motion;
+    const motion = app.view.motion;
     let accumulatedDelta = 0;
 
     for (const event of wheelQueue) {
@@ -51,13 +51,13 @@ export function ScrollSystem(appRef: AppRef): AppSystemInstance {
   function processDragScroll(app: AppRef, _params: LoopParams): void {
     if (dragQueue.length === 0) return;
 
-    const motion = app.motion;
+    const motion = app.view.motion;
 
     for (const event of dragQueue) {
       switch (event.state) {
         case GestureState.Initialize:
           motion.velocity = 0;
-          app.dirtyFlags.set(AppDirtyFlags.GestureRunning);
+          app.view.dirtyFlags.set(AppDirtyFlags.GestureRunning);
           break;
 
         case GestureState.Update:
@@ -68,7 +68,7 @@ export function ScrollSystem(appRef: AppRef): AppSystemInstance {
 
         case GestureState.Finalize:
           motion.velocity = event.delta;
-          app.dirtyFlags.unset(AppDirtyFlags.GestureRunning);
+          app.view.dirtyFlags.unset(AppDirtyFlags.GestureRunning);
           break;
       }
     }

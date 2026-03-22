@@ -6,7 +6,7 @@ import { DisposableStoreId, createDisposableStore, event, throttle } from "../co
 export function ToggleSystem(appRef: AppRef): AppSystemInstance {
   const toggleQueue: number[] = [];
   const disposables = createDisposableStore();
-  const itemsPerSlide = appRef.layout.pagination.itemsPerSlide;
+  const itemsPerSlide = appRef.view.layout.pagination.itemsPerSlide;
 
   function init(): Disposable {
     disposables.push(
