@@ -1,12 +1,4 @@
-import {
-  AppRef,
-  AppSystemInstance,
-  GlobalSnapshotBegin,
-  GlobalSnapshotChunk,
-  PatchBatch,
-  Phases,
-  WindowSnapshot,
-} from "../components";
+import { AppRef, AppSystemInstance, markForCheck, Phases, WindowSnapshot } from "../components";
 import {
   base64ToUint8Array,
   concatUint8Arrays,
@@ -14,82 +6,94 @@ import {
   Disposable,
   DisposableStoreId,
   gunzipInBrowser,
+  throttle,
 } from "../core";
 
 export function SyncSystem(appRef: AppRef): AppSystemInstance {
-  let chunkBuffer: Uint8Array[] = [];
+  const { gateway, board, view } = appRef;
+  const { itemsPerSlide } = view.layout.pagination;
 
-  const patcheQueue: PatchBatch["patches"] = [];
-  const windowSnapshotQueue: WindowSnapshot[] = [];
+  let patchQueue: [number, number][] = [];
+  let chunkBuffer: Uint8Array[] = [];
+  let lastCursor = -1;
 
   function init(): Disposable {
-    const gateway = appRef.gateway;
     const disposables = createDisposableStore();
 
     disposables.push(
       DisposableStoreId.Static,
-      gateway.snapshotBegin.register(onSnapshotStart),
-      gateway.snapshotChunk.register(onChunkReceived),
+      gateway.snapshotBegin.register(() => (chunkBuffer = [])),
+      gateway.snapshotChunk.register(({ b64 }) => chunkBuffer.push(base64ToUint8Array(b64))),
       gateway.snapshotDone.register(onSnapshotComplete),
-      gateway.patchBatch.register(ingestPatches),
-      gateway.windowSnapshot.register(stageViewSnapshot),
+      gateway.patchBatch.register(({ patches }) => patchQueue.push(...patches)),
+      gateway.windowSnapshot.register(onWindowSnapshot),
     );
 
     return disposables.flushAll;
   }
 
-  function onSnapshotStart(_payload: GlobalSnapshotBegin): void {
-    chunkBuffer.length = 0;
-  }
+  function consumePatches(app: AppRef): void {
+    if (patchQueue.length === 0) return;
 
-  function onChunkReceived(payload: GlobalSnapshotChunk): void {
-    chunkBuffer.push(base64ToUint8Array(payload.b64));
-  }
+    const affectedPages = new Set<number>();
 
-  function onSnapshotComplete(): void {
-    hydrateBoard(chunkBuffer);
-    chunkBuffer.length = 0;
-  }
-
-  function ingestPatches(batch: PatchBatch): void {
-    for (const patch of batch.patches) {
-      patcheQueue.push(patch);
-    }
-  }
-
-  function stageViewSnapshot(snapshot: WindowSnapshot): void {
-    windowSnapshotQueue.push(snapshot);
-  }
-
-  function commitPatchQueue(app: AppRef): void {
-    for (const [index, value] of patcheQueue) {
-      Boolean(value) ? app.board.set(index) : app.board.unset(index);
+    for (const [index, value] of patchQueue) {
+      board.setAt(index, Boolean(value));
+      affectedPages.add(Math.floor(index / itemsPerSlide));
     }
 
-    patcheQueue.length = 0;
-  }
-
-  function synchronizeViews(app: AppRef): void {
-    for (const { pos, bits_b64 } of windowSnapshotQueue) {
-      app.board.patchFromBase64(pos, bits_b64, { bitOrder: "msb0" });
+    for (const slide of view.slides) {
+      if (affectedPages.has(slide.pageIndex)) {
+        slide.isDirty = true;
+      }
     }
 
-    windowSnapshotQueue.length = 0;
+    markForCheck(app);
+    patchQueue = [];
   }
 
-  async function hydrateBoard(chunks: Uint8Array[]): Promise<void> {
-    const gzBytes = concatUint8Arrays(chunks);
+  function onWindowSnapshot(snapshot: WindowSnapshot): void {
+    board.patchFromBase64(snapshot.pos, snapshot.bits_b64, { bitOrder: "msb0" });
+
+    for (const slide of view.slidesVisibilityTracker.getVisibleSlides()) {
+      slide.isDirty = true;
+    }
+
+    markForCheck(appRef);
+  }
+
+  async function onSnapshotComplete(): Promise<void> {
+    const gzBytes = concatUint8Arrays(chunkBuffer);
+    chunkBuffer = [];
 
     try {
       const rawBytes = await gunzipInBrowser(gzBytes);
-      appRef.board.copyFromBytesWithOrder(rawBytes, { bitOrder: "msb0" });
+      board.copyFromBytesWithOrder(rawBytes, { bitOrder: "msb0" });
+
+      for (const slide of view.slides) {
+        slide.isDirty = true;
+      }
+
+      markForCheck(appRef);
     } catch (error) {}
+  }
+
+  function syncCursor(app: AppRef): void {
+    const firstSlide = view.slidesVisibilityTracker.getFirstVisibleSlide();
+    if (!firstSlide) return;
+
+    const cursor = firstSlide.pageIndex * itemsPerSlide;
+
+    if (cursor !== lastCursor) {
+      lastCursor = cursor;
+      app.gateway.sendCursor(cursor);
+    }
   }
 
   return {
     init,
     logic: {
-      [Phases.IO]: [commitPatchQueue, synchronizeViews, handleCursorUpdate],
+      [Phases.IO]: [consumePatches, throttle(syncCursor, 300)],
     },
   };
 }

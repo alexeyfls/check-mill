@@ -19,7 +19,7 @@ export type LayoutConfig = {
 
   slideMaxWidth: number;
   slideMinHeight: number;
-  slideMaxHeightRatio: number; // 0.0 to 1.0 (relative to viewport)
+  slideMaxHeightRatio: number;
 
   targetDivisor: number;
   minGridDimension: number;
@@ -56,7 +56,7 @@ export function createLayout(initialConfig: LayoutConfig): Readonly<LayoutProper
 
 export function updateLayout(
   currentProps: LayoutProperties,
-  updates: Partial<LayoutConfig>
+  updates: Partial<LayoutConfig>,
 ): Readonly<LayoutProperties> {
   const newConfig: LayoutConfig = {
     ...currentProps,

@@ -1,5 +1,6 @@
-import { type Disposable, DisposableStoreId, createDisposableStore } from "../core";
+import { type Disposable } from "../core";
 import { type Component } from "./component";
+import { Slide, SlidesCollectionType } from "./slides";
 
 export const enum VisibilityState {
   Hidden = 1,
@@ -13,19 +14,21 @@ export const enum VisibilityChange {
 }
 
 export type VisibilityRecord = {
-  index: number;
+  slide: Slide;
   change: VisibilityChange.Entered | VisibilityChange.Exited;
 };
 
 export interface VisibilityTrackerType extends Component {
   takeRecords(): VisibilityRecord[];
+  getVisibleSlides(): SlidesCollectionType;
+  getFirstVisibleSlide(): Slide | null;
 }
 
 export function createVisibilityTracker(
   root: HTMLElement,
-  elementsToTrack: HTMLElement[]
+  slides: SlidesCollectionType,
 ): VisibilityTrackerType {
-  const elementCount = elementsToTrack.length;
+  const elementCount = slides.length;
   const lastRecords = new Uint8Array(elementCount).fill(VisibilityState.Hidden);
   const currentRecords = new Uint8Array(elementCount).fill(VisibilityState.Hidden);
 
@@ -35,46 +38,67 @@ export function createVisibilityTracker(
       threshold: 0,
     });
 
-    for (let i = 0; i < elementCount; i++) {
-      const element = elementsToTrack[i];
-      element.setAttribute("data-vi", i.toString());
-      observer.observe(element);
+    for (const slide of slides) {
+      slide.nativeElement.setAttribute("data-vi", slide.realIndex.toString());
+      observer.observe(slide.nativeElement);
     }
 
-    const disposables = createDisposableStore();
-    disposables.push(DisposableStoreId.Static, () => observer.disconnect());
-
-    return () => disposables.flushAll();
+    return () => observer.disconnect();
   }
 
   function takeRecords(): VisibilityRecord[] {
-    const changedRecords: VisibilityRecord[] = [];
+    const records: VisibilityRecord[] = [];
 
     for (let i = 0; i < elementCount; i++) {
       const diff = currentRecords[i] - lastRecords[i];
-      const changed = diff === VisibilityChange.Entered || diff === VisibilityChange.Exited;
+      if (diff === 0) continue;
 
-      if (!changed) continue;
-
-      changedRecords.push({
-        index: i,
-        change: diff,
+      records.push({
+        slide: slides[i],
+        change: diff as VisibilityChange.Entered | VisibilityChange.Exited,
       });
     }
 
     lastRecords.set(currentRecords);
-    return changedRecords;
+    return records;
+  }
+
+  function getVisibleSlides(): SlidesCollectionType {
+    const visible: Slide[] = [];
+    for (let i = 0; i < elementCount; i++) {
+      if (currentRecords[i] === VisibilityState.Visible) {
+        visible.push(slides[i]);
+      }
+    }
+    return visible;
+  }
+
+  function getFirstVisibleSlide(): Slide | null {
+    let first: Slide | null = null;
+
+    for (let i = 0; i < elementCount; i++) {
+      if (currentRecords[i] === VisibilityState.Visible) {
+        const slide = slides[i];
+        if (!first || slide.virtualIndex < first.virtualIndex) {
+          first = slide;
+        }
+      }
+    }
+    return first;
   }
 
   function handleIntersection(entries: IntersectionObserverEntry[]): void {
-    for (const { target, isIntersecting } of entries) {
-      const index = parseInt(target.getAttribute("data-vi")!, 10);
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
+      const idxStr = entry.target.getAttribute("data-vi");
+      if (idxStr === null) continue;
 
-      if (!isNaN(index)) {
-        currentRecords[index] = isIntersecting ? VisibilityState.Visible : VisibilityState.Hidden;
-      }
+      const index = parseInt(idxStr, 10);
+      currentRecords[index] = entry.isIntersecting
+        ? VisibilityState.Visible
+        : VisibilityState.Hidden;
     }
   }
 
-  return { init, takeRecords };
+  return { init, takeRecords, getVisibleSlides, getFirstVisibleSlide };
 }

@@ -34,7 +34,7 @@ defmodule CheckMill.SegmentBroadcaster do
       Map.update(
         segments,
         seg_id,
-        start_segment(seg_id) |> put_patch(idx, val),
+        %Segment{} |> put_patch(idx, val) |> ensure_timer(seg_id),
         fn seg -> seg |> put_patch(idx, val) |> ensure_timer(seg_id) end
       )
 
@@ -54,12 +54,6 @@ defmodule CheckMill.SegmentBroadcaster do
     end
   end
 
-  defp start_segment(seg_id) do
-    %Segment{
-      timer_ref: Process.send_after(self(), {:flush, seg_id}, @broadcast_flush_ms)
-    }
-  end
-
   defp put_patch(%Segment{buf: buf} = seg, idx, val) when is_map_key(buf, idx) do
     %{seg | buf: Map.put(buf, idx, val)}
   end
@@ -73,7 +67,10 @@ defmodule CheckMill.SegmentBroadcaster do
     %{seg | overflow?: true}
   end
 
-  defp ensure_timer(%Segment{timer_ref: nil} = seg, seg_id), do: start_segment(seg_id)
+  defp ensure_timer(%Segment{timer_ref: nil} = seg, seg_id) do
+    %{seg | timer_ref: Process.send_after(self(), {:flush, seg_id}, @broadcast_flush_ms)}
+  end
+
   defp ensure_timer(seg, _seg_id), do: seg
 
   defp broadcast_updates(seg_id, %Segment{buf: buf, overflow?: ovf, seq: seq}) do

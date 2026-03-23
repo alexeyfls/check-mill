@@ -3,45 +3,38 @@ import type {
   AppSystemInstance,
   SlidesRendererType,
   VisibilityRecord,
-  VisibilityTrackerType,
 } from "../components";
 import {
   Phases,
   VisibilityChange,
   writeVariables,
-  createVisibilityTracker,
   createSlidesRenderer,
   AppDirtyFlags,
+  needsCheck,
 } from "../components";
 import type { Disposable, LoopParams } from "../core";
-import { DisposableStoreId, createDisposableStore, throttle } from "../core";
+import { DisposableStoreId, createDisposableStore, runIf, throttle } from "../core";
 
 export function RenderSystem(appRef: AppRef): AppSystemInstance {
   let renderer: SlidesRendererType;
-  let visibilityTracker: VisibilityTrackerType;
 
   const BATCH_SIZE = 2;
   const recordQueue: VisibilityRecord[] = [];
 
   function init(): Disposable {
-    visibilityTracker = createVisibilityTracker(
-      appRef.owner.root,
-      appRef.view.slides.map((s) => s.nativeElement),
-    );
-
     renderer = createSlidesRenderer(appRef.owner.document, appRef.owner.root, appRef.view.layout);
     renderer.mountContainers(appRef.view.slides);
 
     writeVariables(appRef.owner.root, appRef.view.layout);
 
     const disposables = createDisposableStore();
-    disposables.push(DisposableStoreId.Static, visibilityTracker.init());
+    disposables.push(DisposableStoreId.Static);
 
     return () => disposables.flushAll();
   }
 
   function syncVisibility(app: AppRef, _params: LoopParams): void {
-    const records = visibilityTracker.takeRecords();
+    const records = app.view.slidesVisibilityTracker.takeRecords();
     if (records.length > 0) {
       recordQueue.push(...records);
     }
@@ -59,11 +52,11 @@ export function RenderSystem(appRef: AppRef): AppSystemInstance {
 
       switch (record.change) {
         case VisibilityChange.Exited:
-          renderer.dehydrate(app.view.slides[record.index]);
+          renderer.dehydrate(record.slide);
           break;
 
         case VisibilityChange.Entered:
-          renderer.hydrate(app.view.slides[record.index], app.board);
+          renderer.hydrate(record.slide, app.board);
           break;
       }
     }
@@ -96,10 +89,22 @@ export function RenderSystem(appRef: AppRef): AppSystemInstance {
     }
   }
 
+  function updateSlides(app: AppRef, _params: LoopParams): void {
+    for (const slide of app.view.slidesVisibilityTracker.getVisibleSlides()) {
+      renderer.updateState(slide, app.board);
+    }
+  }
+
   return {
     init,
     logic: {
-      [Phases.Render]: [lerp, syncPosition, throttle(syncVisibility, 32), processStyles],
+      [Phases.Render]: [
+        lerp,
+        syncPosition,
+        processStyles,
+        throttle(syncVisibility, 32),
+        runIf(needsCheck, updateSlides),
+      ],
     },
   };
 }

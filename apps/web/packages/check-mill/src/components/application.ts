@@ -17,12 +17,13 @@ import { createMotion } from "./scroll-motion";
 import type { SlidesCollectionType } from "./slides";
 import { createSlides } from "./slides";
 import { createViewport, ViewportType } from "./viewport";
+import { createVisibilityTracker, VisibilityTrackerType } from "./visibility-tracker";
 
 // prettier-ignore
 export const enum AppDirtyFlags {
-  None           = 0b00000000,
-  GestureRunning = 0b00000001,
-  Interacted     = 0b00000010,
+  None             = 0,
+  GestureRunning   = 1 << 0,
+  FrameNeedsRedraw = 1 << 1,
 }
 
 export const enum Phases {
@@ -38,10 +39,10 @@ export const enum Phases {
 export type ViewLayout = {
   readonly layout: LayoutProperties;
   readonly slides: SlidesCollectionType;
-  readonly viewport: ViewportType;
   readonly loopState: LoopState;
   readonly motion: MotionType;
   readonly dirtyFlags: BitwiseFlags;
+  readonly slidesVisibilityTracker: VisibilityTrackerType;
 };
 
 /**
@@ -56,6 +57,7 @@ export type AppRef = {
 
   readonly board: BitSet;
   readonly gateway: GatewayType;
+  readonly viewport: ViewportType;
 
   view: ViewLayout;
   renderLoop: RenderLoopType | null;
@@ -82,7 +84,7 @@ export function createPhasePipeline(): PhasePipeline {
     [Phases.IO]: [],
     [Phases.Update]: [],
     [Phases.Render]: [],
-    [Phases.Cleanup]: [],
+    [Phases.Cleanup]: [cleanupFrame],
   };
 }
 
@@ -129,6 +131,7 @@ export function createAppRef(root: HTMLElement): AppRef {
     board: BitSet.fromBitCount(1_048_576),
     gateway: createGateway("http://localhost:4000/view"),
     view: createViewLayout(root),
+    viewport: createViewport(root),
     renderLoop: null,
     readExecutor: noop,
     writeExecutor: noop,
@@ -158,12 +161,37 @@ export function createViewLayout(root: HTMLElement): ViewLayout {
     targetDivisor: 65_535 * 16,
   });
 
+  const slides = createSlides(new SlideFactory(document), layout.slideCount.total);
+
+  const slidesVisibilityTracker = createVisibilityTracker(root, slides);
+
   return {
     layout,
-    slides: createSlides(new SlideFactory(document), layout.slideCount.total),
-    viewport: createViewport(root),
-    loopState: initialLoopState(),
+    slides,
+    slidesVisibilityTracker,
     motion: createMotion(),
+    loopState: initialLoopState(),
     dirtyFlags: createFlagManager(AppDirtyFlags.None),
   };
+}
+
+/**
+ * Triggers a redraw for the next render frame.
+ */
+export function markForCheck(app: AppRef): void {
+  app.view.dirtyFlags.set(AppDirtyFlags.FrameNeedsRedraw);
+}
+
+/**
+ * Checks if the current frame has been marked for a redraw.
+ */
+export function needsCheck(app: AppRef): boolean {
+  return app.view.dirtyFlags.is(AppDirtyFlags.FrameNeedsRedraw);
+}
+
+/**
+ * Resets the redraw flag at the end of the pipeline.
+ */
+export function cleanupFrame(app: AppRef): void {
+  app.view.dirtyFlags.unset(AppDirtyFlags.FrameNeedsRedraw);
 }

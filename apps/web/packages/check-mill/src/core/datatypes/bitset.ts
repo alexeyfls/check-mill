@@ -199,7 +199,9 @@ export class BitSet {
     const byteStart = startBit >>> 3;
 
     if (bitOffset === 0) {
-      this.bytes.set(patchBytes, byteStart);
+      for (let i = 0; i < patchBytes.length; i++) {
+        this.bytes[(byteStart + i) % this.bytes.length] = patchBytes[i];
+      }
       return;
     }
 

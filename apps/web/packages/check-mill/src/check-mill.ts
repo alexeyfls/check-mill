@@ -57,6 +57,7 @@ function reconfigure(appRef: AppRef, disposables: DisposableStore): void {
   disposables.flush(DisposableStoreId.Reconfigurable);
 
   appRef.view = createViewLayout(appRef.owner.root);
+  disposables.push(DisposableStoreId.Static, appRef.view.slidesVisibilityTracker.init());
 
   const systems: AppSystemInstance[] = [
     ToggleSystem(appRef),
@@ -102,8 +103,8 @@ function setupStaticListeners(appRef: AppRef, disposables: DisposableStore): voi
 
   disposables.push(
     DisposableStoreId.Static,
-    appRef.view.viewport.init(),
-    appRef.view.viewport.resized.register(throttledReconfigure),
+    appRef.viewport.init(),
+    appRef.viewport.resized.register(throttledReconfigure),
     event(appRef.owner.document, "visibilitychange", onVisibilityChange),
   );
 }
