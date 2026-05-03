@@ -4,6 +4,7 @@ import {
   createDisposableStore,
   DisposableStoreId,
   EventReader,
+  isDev,
   TypedEvent,
   type Disposable,
 } from "../core";
@@ -55,8 +56,8 @@ export function createGateway(url: string): GatewayType {
 
     channel
       .join()
-      .receive("ok", (resp) => console.log("Joined successfully", resp))
-      .receive("error", (resp) => console.log("Unable to join", resp));
+      .receive("ok", (resp) => isDev && console.log("Joined successfully", resp))
+      .receive("error", (resp) => isDev && console.log("Unable to join", resp));
 
     const disposables = createDisposableStore();
     disposables.push(

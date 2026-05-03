@@ -7,7 +7,7 @@ import {
   createWheelGesture,
 } from "../components";
 import type { Disposable, LoopParams } from "../core";
-import { DisposableStoreId, createDisposableStore } from "../core";
+import { DisposableStoreId, createDisposableStore, getSupport } from "../core";
 
 const WHEEL_SENSITIVITY = 15;
 
@@ -17,18 +17,32 @@ export function ScrollSystem(appRef: AppRef): AppSystemInstance {
   const disposables = createDisposableStore();
 
   function init(): Disposable {
+    const { hasTouch } = getSupport(appRef.owner.window, appRef.owner.document);
+    if (hasTouch) {
+      setupDragStrategy();
+    } else {
+      setupWheelStrategy();
+    }
+
+    disposables.push(DisposableStoreId.Static, cleanup);
+
+    return disposables.flushAll;
+  }
+
+  function setupDragStrategy(): void {
     const dragGesture = createDragGesture(appRef.owner.root);
-    const wheelGesture = createWheelGesture(appRef.owner.root);
 
     dragGesture.register((e) => dragQueue.push(e));
+
+    disposables.push(DisposableStoreId.Static, dragGesture.init());
+  }
+
+  function setupWheelStrategy(): void {
+    const wheelGesture = createWheelGesture(appRef.owner.root);
+
     wheelGesture.register((e) => wheelQueue.push(e));
 
-    disposables.push(DisposableStoreId.Static, dragGesture.init(), wheelGesture.init(), () => {
-      dragQueue.length = 0;
-      wheelQueue.length = 0;
-    });
-
-    return () => disposables.flushAll();
+    disposables.push(DisposableStoreId.Static, wheelGesture.init());
   }
 
   function processWheelScroll(app: AppRef, _params: LoopParams): void {
@@ -74,6 +88,11 @@ export function ScrollSystem(appRef: AppRef): AppSystemInstance {
     }
 
     dragQueue.length = 0;
+  }
+
+  function cleanup(): void {
+    dragQueue.length = 0;
+    wheelQueue.length = 0;
   }
 
   return {

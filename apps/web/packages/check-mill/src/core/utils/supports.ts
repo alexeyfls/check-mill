@@ -1,6 +1,4 @@
-import { WindowType } from ".";
-
-export function getSupport(ownerWindow: WindowType, ownerDocument: Document) {
+export function getSupport(ownerWindow: Window, ownerDocument: Document) {
   return {
     hasWheelEvent: "onwheel" in ownerDocument,
     hasMouseWheelEvent: "onmousewheel" in ownerDocument,

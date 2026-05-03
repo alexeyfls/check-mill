@@ -13,7 +13,7 @@ import {
   needsCheck,
 } from "../components";
 import type { Disposable, LoopParams } from "../core";
-import { DisposableStoreId, createDisposableStore, runIf, throttle } from "../core";
+import { runIf, throttle } from "../core";
 
 export function RenderSystem(appRef: AppRef): AppSystemInstance {
   let renderer: SlidesRendererType;
@@ -27,10 +27,7 @@ export function RenderSystem(appRef: AppRef): AppSystemInstance {
 
     writeVariables(appRef.owner.root, appRef.view.layout);
 
-    const disposables = createDisposableStore();
-    disposables.push(DisposableStoreId.Static);
-
-    return () => disposables.flushAll();
+    return () => {};
   }
 
   function syncVisibility(app: AppRef, _params: LoopParams): void {
@@ -77,18 +74,6 @@ export function RenderSystem(appRef: AppRef): AppSystemInstance {
     }
   }
 
-  function processStyles(app: AppRef, _params: LoopParams): void {
-    const classList = app.owner.root.classList;
-    const isGestureRunning = app.view.dirtyFlags.is(AppDirtyFlags.GestureRunning);
-    const containsClass = classList.contains("is-scrolling");
-
-    if (isGestureRunning) {
-      !containsClass && classList.add("is-scrolling");
-    } else {
-      containsClass && classList.remove("is-scrolling");
-    }
-  }
-
   function updateSlides(app: AppRef, _params: LoopParams): void {
     for (const slide of app.view.slidesVisibilityTracker.getVisibleSlides()) {
       renderer.updateState(slide, app.board);
@@ -101,7 +86,6 @@ export function RenderSystem(appRef: AppRef): AppSystemInstance {
       [Phases.Render]: [
         lerp,
         syncPosition,
-        processStyles,
         throttle(syncVisibility, 32),
         runIf(needsCheck, updateSlides),
       ],

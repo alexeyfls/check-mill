@@ -1,3 +1,5 @@
+import { isDev } from "./environment";
+
 /**
  * Measures and logs the execution time of a synchronous function.
  *
@@ -5,6 +7,10 @@
  * @param func - The synchronous function to measure.
  */
 export function measure(message: string, func: VoidFunction): void {
+  if (!isDev) {
+    return func();
+  }
+
   const start = performance.now();
 
   func();
