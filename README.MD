@@ -1,4 +1,4 @@
-![Logo](header.png)
+![Logo](.github/assets/header.png)
 
 # Check-Mill
 
