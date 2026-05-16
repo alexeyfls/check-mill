@@ -18,7 +18,7 @@ defmodule CheckMill.GridConfig do
   @max_unique_per_segment 4_096
 
   # ---- 5. Hammer Rate Limiting (Ingress) ----
-  @join_limit_count 5
+  @join_limit_count 1000
   @join_limit_ms 60_000
   @toggle_limit_count 30
   @toggle_limit_ms 2_000

@@ -9,6 +9,7 @@ import {
   throttle,
   createPhase,
   createMergedRunner,
+  debounce,
 } from "./core";
 import { RenderSystem, ScrollSystem, SyncSystem, ToggleSystem, UpdateSystem } from "./systems";
 
@@ -91,7 +92,7 @@ function reconfigure(appRef: AppRef, disposables: DisposableStore): void {
  * @param appState - The central application state object.
  */
 function setupStaticListeners(appRef: AppRef, disposables: DisposableStore): void {
-  const throttledReconfigure = throttle(() => reconfigure(appRef, disposables), 300);
+  const debouncedReconfigure = debounce(() => reconfigure(appRef, disposables), 300);
 
   const onVisibilityChange = (_event: Event): void => {
     if (appRef.owner.document.hidden) {
@@ -104,7 +105,7 @@ function setupStaticListeners(appRef: AppRef, disposables: DisposableStore): voi
   disposables.push(
     DisposableStoreId.Static,
     appRef.viewport.init(),
-    appRef.viewport.resized.register(throttledReconfigure),
+    appRef.viewport.resized.register(debouncedReconfigure),
     event(appRef.owner.document, "visibilitychange", onVisibilityChange),
   );
 }
