@@ -1,0 +1,5 @@
+procs:
+  api:
+    shell: "cd apps/api && mix phx.server"
+  client:
+    shell: "cd apps/client && npm run turbo:dev"
